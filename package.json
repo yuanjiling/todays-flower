@@ -1,0 +1,72 @@
+{
+  "name": "react-example",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Desktop-first personal todo app shell for J-Flow.",
+  "author": "OpenAI Codex",
+  "type": "module",
+  "main": "electron/main.cjs",
+  "scripts": {
+    "dev": "concurrently -k \"npm:dev:web\" \"npm:dev:desktop\"",
+    "dev:web": "vite --port=3000 --host=127.0.0.1",
+    "dev:desktop": "wait-on tcp:3000 && cross-env VITE_DEV_SERVER_URL=http://127.0.0.1:3000 electron .",
+    "dev:web-only": "vite --port=3000 --host=0.0.0.0",
+    "build": "npm run build:web",
+    "build:web": "vite build",
+    "build:desktop": "npm run build:web && cross-env ELECTRON_CACHE=.electron-cache ELECTRON_BUILDER_CACHE=.electron-builder-cache electron-builder",
+    "start:desktop": "electron .",
+    "preview": "vite preview",
+    "svg:flower": "node scripts/svg-to-flower-tsx.mjs",
+    "clean": "node -e \"const fs=require('fs'); for (const path of ['dist','release']) fs.rmSync(path,{ recursive:true, force:true });\"",
+    "lint": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@google/genai": "^2.4.0",
+    "@tailwindcss/vite": "^4.1.14",
+    "@vitejs/plugin-react": "^5.0.4",
+    "dotenv": "^17.2.3",
+    "express": "^4.21.2",
+    "lucide-react": "^0.546.0",
+    "motion": "^12.23.24",
+    "react": "^19.0.1",
+    "react-dom": "^19.0.1",
+    "vite": "^6.2.3"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^22.14.0",
+    "autoprefixer": "^10.4.21",
+    "concurrently": "^10.0.3",
+    "cross-env": "^10.1.0",
+    "electron": "^42.4.1",
+    "electron-builder": "^26.15.3",
+    "esbuild": "^0.25.0",
+    "tailwindcss": "^4.1.14",
+    "tsx": "^4.21.0",
+    "typescript": "~5.8.2",
+    "vite": "^6.2.3",
+    "wait-on": "^9.0.10"
+  },
+  "build": {
+    "appId": "com.aia.todo",
+    "productName": "Todo Desktop",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+    "asar": true,
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  }
+}

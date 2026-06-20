@@ -1,0 +1,418 @@
+const path = require('path');
+const { app, BrowserWindow, ipcMain, Notification, screen } = require('electron');
+
+const APP_ID = 'com.aia.todo';
+const DEFAULT_TITLE = 'J-Flow';
+const DEFAULT_LANGUAGE = 'en';
+const REMINDER_MIN_DELAY_MS = 1000;
+const REMINDER_TASKS_PER_NOTIFICATION = 4;
+const REMINDER_WINDOW_WIDTH = 430;
+const REMINDER_WINDOW_HEIGHT = 320;
+
+let mainWindow = null;
+let reminderWindow = null;
+let reminderTimer = null;
+let lastReminderAt = 0;
+
+const reminderState = {
+  intervalMinutes: 0,
+  language: DEFAULT_LANGUAGE,
+  tasks: [],
+};
+
+const isDev = Boolean(process.env.VITE_DEV_SERVER_URL);
+
+function buildRuntimeInfo() {
+  return {
+    isElectron: true,
+    platform: process.platform,
+    versions: {
+      chrome: process.versions.chrome,
+      electron: process.versions.electron,
+      node: process.versions.node,
+    },
+  };
+}
+
+function getLaunchAtLoginSettings() {
+  const settings = app.getLoginItemSettings();
+
+  return {
+    openAtLogin: Boolean(settings.openAtLogin),
+  };
+}
+
+function setLaunchAtLogin(openAtLogin) {
+  app.setLoginItemSettings({
+    openAtLogin: Boolean(openAtLogin),
+  });
+
+  return getLaunchAtLoginSettings();
+}
+
+function focusMainWindow() {
+  if (!mainWindow) {
+    return;
+  }
+
+  if (mainWindow.isMinimized()) {
+    mainWindow.restore();
+  }
+
+  mainWindow.show();
+  mainWindow.focus();
+}
+
+function createWindow() {
+  mainWindow = new BrowserWindow({
+    width: 1440,
+    height: 960,
+    minWidth: 1120,
+    minHeight: 760,
+    show: false,
+    autoHideMenuBar: true,
+    backgroundColor: '#f7f4ea',
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      preload: path.join(__dirname, 'preload.cjs'),
+    },
+  });
+
+  mainWindow.once('ready-to-show', () => {
+    mainWindow.show();
+  });
+
+  if (isDev) {
+    mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL);
+    mainWindow.webContents.openDevTools({ mode: 'detach' });
+    return;
+  }
+
+  mainWindow.loadFile(path.join(__dirname, '..', 'dist', 'index.html'));
+}
+
+function positionReminderWindow(win) {
+  const display = screen.getPrimaryDisplay();
+  const workArea = display.workArea;
+  const x = Math.round(workArea.x + workArea.width - REMINDER_WINDOW_WIDTH - 2);
+  const y = Math.round(workArea.y + workArea.height - REMINDER_WINDOW_HEIGHT - 2);
+
+  win.setBounds({
+    x,
+    y,
+    width: REMINDER_WINDOW_WIDTH,
+    height: REMINDER_WINDOW_HEIGHT,
+  });
+}
+
+function closeReminderWindow() {
+  if (!reminderWindow) {
+    return;
+  }
+
+  const win = reminderWindow;
+  reminderWindow = null;
+
+  if (!win.isDestroyed()) {
+    win.close();
+  }
+}
+
+function normalizeNotificationPayload(payload) {
+  const title =
+    typeof payload?.title === 'string' && payload.title.trim()
+      ? payload.title.trim()
+      : DEFAULT_TITLE;
+  const body =
+    typeof payload?.body === 'string' && payload.body.trim()
+      ? payload.body.trim()
+      : '';
+
+  return {
+    title,
+    body,
+    silent: Boolean(payload?.silent),
+  };
+}
+
+function clearReminderTimer() {
+  if (reminderTimer) {
+    clearTimeout(reminderTimer);
+    reminderTimer = null;
+  }
+}
+
+function normalizeReminderState(payload) {
+  const intervalMinutes = Number.isFinite(payload?.intervalMinutes)
+    ? Math.max(0, Math.floor(payload.intervalMinutes))
+    : 0;
+  const language = payload?.language === 'zh' ? 'zh' : DEFAULT_LANGUAGE;
+  const tasks = Array.isArray(payload?.tasks)
+    ? payload.tasks
+        .map((task) => {
+          const title =
+            typeof task?.title === 'string' ? task.title.trim().replace(/\s+/g, ' ') : '';
+          const importance = Number.isFinite(task?.importance)
+            ? Math.min(3, Math.max(1, Math.floor(task.importance)))
+            : 1;
+
+          if (!title) {
+            return null;
+          }
+
+          return {
+            id: typeof task?.id === 'string' ? task.id : title,
+            title,
+            importance,
+            flowerId: typeof task?.flowerId === 'string' ? task.flowerId : undefined,
+          };
+        })
+        .filter(Boolean)
+    : [];
+
+  return {
+    intervalMinutes,
+    language,
+    tasks,
+  };
+}
+
+function legacyBuildReminderNotificationDetails() {
+  const tasks = reminderState.tasks;
+
+  if (tasks.length === 0) {
+    return [];
+  }
+
+  const toDisplayPriority = (importance) => Math.min(3, Math.max(1, 4 - importance));
+  const getPriorityEmoji = (displayPriority) => {
+    if (displayPriority === 1) {
+      return '🌺';
+    }
+
+    if (displayPriority === 2) {
+      return '🌼';
+    }
+
+    return '🌱';
+  };
+
+  const chunks = [];
+
+  for (let index = 0; index < tasks.length; index += REMINDER_TASKS_PER_NOTIFICATION) {
+    chunks.push(tasks.slice(index, index + REMINDER_TASKS_PER_NOTIFICATION));
+  }
+
+  return chunks.map((chunk, chunkIndex) => {
+    const bodyLines = chunk.map((task) => {
+      const displayPriority = toDisplayPriority(task.importance);
+      const emoji = getPriorityEmoji(displayPriority);
+
+      return `${emoji} [P${displayPriority}] ${task.title}`;
+    });
+
+    const groupSuffix = chunks.length > 1 ? ` ${chunkIndex + 1}/${chunks.length}` : '';
+
+    return {
+      title:
+        reminderState.language === 'zh'
+          ? `今日花圃 ꕤ 待绽放 ${tasks.length} 株${groupSuffix}`
+          : `Today's Flower Garden ꕤ ${tasks.length} Waiting to Bloom${groupSuffix}`,
+      body: bodyLines.join('\n'),
+      silent: chunkIndex > 0,
+    };
+  });
+}
+
+function legacyShowReminderNotification() {
+  if (!Notification.isSupported()) {
+    return;
+  }
+
+  const details = legacyBuildReminderNotificationDetails();
+
+  if (details.length === 0) {
+    return;
+  }
+
+  details.forEach((detail) => {
+    const notification = new Notification(detail);
+
+    notification.on('click', () => {
+      focusMainWindow();
+
+      if (mainWindow) {
+        mainWindow.webContents.send('desktop:notification-clicked', detail);
+      }
+    });
+
+    notification.show();
+  });
+}
+
+function buildReminderWindowPayload() {
+  if (reminderState.tasks.length === 0) {
+    return null;
+  }
+
+  return {
+    intervalMinutes: reminderState.intervalMinutes,
+    language: reminderState.language,
+    totalTaskCount: reminderState.tasks.length,
+    tasks: reminderState.tasks.slice(0, REMINDER_TASKS_PER_NOTIFICATION),
+  };
+}
+
+function showReminderNotification() {
+  const payload = buildReminderWindowPayload();
+
+  if (!payload) {
+    return;
+  }
+
+  closeReminderWindow();
+
+  reminderWindow = new BrowserWindow({
+    width: REMINDER_WINDOW_WIDTH,
+    height: REMINDER_WINDOW_HEIGHT,
+    show: false,
+    frame: false,
+    transparent: true,
+    resizable: false,
+    maximizable: false,
+    minimizable: false,
+    fullscreenable: false,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    autoHideMenuBar: true,
+    backgroundColor: '#00000000',
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      preload: path.join(__dirname, 'preload.cjs'),
+    },
+  });
+
+  positionReminderWindow(reminderWindow);
+
+  reminderWindow.on('closed', () => {
+    reminderWindow = null;
+  });
+
+  reminderWindow.webContents.once('did-finish-load', () => {
+    if (!reminderWindow || reminderWindow.isDestroyed()) {
+      return;
+    }
+
+    reminderWindow.webContents.send('desktop:reminder-window-payload', payload);
+    reminderWindow.showInactive();
+  });
+
+  reminderWindow.webContents.on('before-input-event', (_event, input) => {
+    if (input.key === 'Escape') {
+      closeReminderWindow();
+    }
+  });
+
+  if (isDev) {
+    reminderWindow.loadURL(`${process.env.VITE_DEV_SERVER_URL}?notification=1`);
+    return;
+  }
+
+  reminderWindow.loadFile(path.join(__dirname, '..', 'dist', 'index.html'), {
+    query: { notification: '1' },
+  });
+}
+
+function scheduleReminderTimer() {
+  clearReminderTimer();
+
+  if (reminderState.intervalMinutes <= 0 || reminderState.tasks.length === 0) {
+    return;
+  }
+
+  const intervalMs = reminderState.intervalMinutes * 60 * 1000;
+  const now = Date.now();
+  const dueAt = lastReminderAt > 0 ? lastReminderAt + intervalMs : now + intervalMs;
+  const delay = Math.max(REMINDER_MIN_DELAY_MS, dueAt - now);
+
+  reminderTimer = setTimeout(() => {
+    reminderTimer = null;
+
+    if (reminderState.intervalMinutes > 0 && reminderState.tasks.length > 0) {
+      showReminderNotification();
+      lastReminderAt = Date.now();
+    }
+
+    scheduleReminderTimer();
+  }, delay);
+}
+
+app.whenReady().then(() => {
+  app.setAppUserModelId(APP_ID);
+  ipcMain.handle('desktop:get-runtime-info', () => buildRuntimeInfo());
+  ipcMain.handle('desktop:get-launch-at-login', () => getLaunchAtLoginSettings());
+  ipcMain.handle('desktop:set-launch-at-login', (_event, payload) =>
+    setLaunchAtLogin(payload?.openAtLogin),
+  );
+  ipcMain.handle('desktop:notify', (_event, payload) => {
+    if (!Notification.isSupported()) {
+      return { shown: false, reason: 'unsupported' };
+    }
+
+    const detail = normalizeNotificationPayload(payload);
+    const notification = new Notification(detail);
+
+    notification.on('click', () => {
+      focusMainWindow();
+
+      if (mainWindow) {
+        mainWindow.webContents.send('desktop:notification-clicked', detail);
+      }
+    });
+
+    notification.show();
+
+    return { shown: true };
+  });
+  ipcMain.handle('desktop:update-reminder-state', (_event, payload) => {
+    const nextState = normalizeReminderState(payload);
+
+    reminderState.intervalMinutes = nextState.intervalMinutes;
+    reminderState.language = nextState.language;
+    reminderState.tasks = nextState.tasks;
+
+    scheduleReminderTimer();
+
+    return { ok: true };
+  });
+  ipcMain.handle('desktop:close-reminder-window', () => {
+    closeReminderWindow();
+    return { ok: true };
+  });
+  ipcMain.handle('desktop:show-main-window', () => {
+    focusMainWindow();
+    return { ok: true };
+  });
+
+  createWindow();
+
+  app.on('activate', () => {
+    if (BrowserWindow.getAllWindows().length === 0) {
+      createWindow();
+      return;
+    }
+
+    focusMainWindow();
+  });
+});
+
+app.on('window-all-closed', () => {
+  clearReminderTimer();
+  closeReminderWindow();
+
+  if (process.platform !== 'darwin') {
+    app.quit();
+  }
+});

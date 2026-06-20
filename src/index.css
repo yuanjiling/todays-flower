@@ -1,0 +1,62 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Playfair Display", ui-serif, Georgia, serif;
+}
+
+body {
+  background-color: #F9F8F6;
+  color: #111111;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::selection {
+  background: #E5E3DB;
+}
+
+input::placeholder {
+  color: #c4c1b9;
+}
+
+.mask-fade-left {
+  mask-image: linear-gradient(to right, transparent, black 15%);
+  -webkit-mask-image: linear-gradient(to right, transparent, black 15%);
+}
+
+.mask-fade-right {
+  mask-image: linear-gradient(to left, transparent, black 15%);
+  -webkit-mask-image: linear-gradient(to left, transparent, black 15%);
+}
+
+.mask-fade-left-right {
+  mask-image: linear-gradient(to right, transparent 0%, black 20%, black 80%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, transparent 0%, black 20%, black 80%, transparent 100%);
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.slim-black-scrollbar::-webkit-scrollbar {
+  width: 2px;
+}
+
+.slim-black-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.slim-black-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 4px;
+}
+
+.slim-black-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.45);
+}
