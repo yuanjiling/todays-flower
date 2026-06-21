@@ -12,6 +12,7 @@ declare global {
     title: string;
     importance: number;
     flowerId?: string;
+    completed: boolean;
   };
 
   type DesktopReminderStatePayload = {
@@ -40,6 +41,12 @@ declare global {
     openAtLogin: boolean;
   };
 
+  type TrayConfigPayload = {
+    lang: string;
+    isNotificationEnabled: boolean;
+    notificationInterval: number;
+  };
+
   interface TodaysFlowerDesktopApi extends DesktopRuntimeInfo {
     getRuntimeInfo: () => Promise<DesktopRuntimeInfo>;
     getLaunchAtLogin: () => Promise<DesktopLaunchAtLoginSettings>;
@@ -53,6 +60,10 @@ declare global {
     closeMainWindow: () => Promise<{ ok: true }>;
     closeReminderWindow: () => Promise<{ ok: true }>;
     showMainWindow: () => Promise<{ ok: true }>;
+    updateTrayMenu: (payload: TrayConfigPayload) => Promise<{ ok: true }>;
+    onTraySettingsChanged: (
+      callback: (payload: TrayConfigPayload) => void,
+    ) => () => void;
     onReminderWindowPayload: (
       callback: (payload: DesktopReminderStatePayload) => void,
     ) => () => void;

@@ -58,6 +58,7 @@ let reminderWindow = null;
 let reminderTimer = null;
 let lastReminderAt = 0;
 let tray = null;
+let trayConfig = { lang: DEFAULT_LANGUAGE, isNotificationEnabled: true, notificationInterval: 60 };
 let isQuitting = false;
 
 const reminderState = {
@@ -122,6 +123,57 @@ function getTrayIconPath() {
   return icoPath;
 }
 
+
+function updateTrayMenu() {
+  if (!tray) return;
+
+  const t = (en, zh) => trayConfig.lang === 'zh' ? zh : en;
+
+  const contextMenu = Menu.buildFromTemplate([
+    {
+      label: t('Enter Garden', '进入花园'),
+      click: () => focusMainWindow(),
+    },
+    { type: 'separator' },
+    {
+      label: t('Enable Reminders', '开�?关闭提醒'),
+      type: 'checkbox',
+      checked: trayConfig.isNotificationEnabled,
+      click: (menuItem) => {
+        trayConfig.isNotificationEnabled = menuItem.checked;
+        if (mainWindow) {
+          mainWindow.webContents.send('desktop:tray-settings-changed', trayConfig);
+        }
+      }
+    },
+    {
+      label: t('Reminder Interval', '提醒间隔'),
+      submenu: [30, 60, 120, 180].map(val => ({
+        label: t(`${val}m`, `${val}分钟`),
+        type: 'radio',
+        checked: trayConfig.notificationInterval === val,
+        click: () => {
+          trayConfig.notificationInterval = val;
+          if (mainWindow) {
+            mainWindow.webContents.send('desktop:tray-settings-changed', trayConfig);
+          }
+        }
+      }))
+    },
+    { type: 'separator' },
+    {
+      label: 'Quit',
+      click: () => {
+        isQuitting = true;
+        app.quit();
+      },
+    },
+  ]);
+
+  tray.setContextMenu(contextMenu);
+}
+
+
 function createTray() {
   if (tray) {
     return;
@@ -129,23 +181,9 @@ function createTray() {
 
   tray = new Tray(getTrayIconPath());
   tray.setToolTip(DEFAULT_TITLE);
-  tray.setContextMenu(
-    Menu.buildFromTemplate([
-      {
-        label: '��Ӧ��',
-        click: () => {
-          focusMainWindow();
-        },
-      },
-      {
-        label: 'Quit',
-        click: () => {
-          isQuitting = true;
-          app.quit();
-        },
-      },
-    ]),
-  );
+  
+  updateTrayMenu();
+  
   tray.on('click', () => {
     focusMainWindow();
   });
@@ -173,13 +211,12 @@ function createWindow() {
     mainWindow.show();
   });
 
-  mainWindow.on('close', (event) => {
+  mainWindow.on('close', () => {
     if (isQuitting) {
       return;
     }
 
-    event.preventDefault();
-    mainWindow.hide();
+    mainWindow = null;
   });
 
   mainWindow.on('closed', () => {
@@ -269,6 +306,7 @@ function normalizeReminderState(payload) {
             title,
             importance,
             flowerId: typeof task?.flowerId === 'string' ? task.flowerId : undefined,
+              completed: !!task?.completed,
           };
         })
         .filter(Boolean)
@@ -320,8 +358,8 @@ function legacyBuildReminderNotificationDetails() {
     return {
       title:
         reminderState.language === 'zh'
-          ? `今日花圃 �?待绽�?${tasks.length} �?{groupSuffix}`
-          : `Today's Flower Garden �?${tasks.length} Waiting to Bloom${groupSuffix}`,
+          ? `今日花圃 · 待绽�?${tasks.length} �?{groupSuffix}`
+          : `Today's Flower Garden · ${tasks.length} Waiting to Bloom${groupSuffix}`,
       body: bodyLines.join('\n'),
       silent: chunkIndex > 0,
     };
@@ -548,6 +586,14 @@ if (!gotSingleInstanceLock) {
     });
     ipcMain.handle('desktop:show-main-window', () => {
       focusMainWindow();
+      return { ok: true };
+    });
+
+    ipcMain.handle('desktop:update-tray-menu', (_event, payload) => {
+      if (payload) {
+        trayConfig = { ...trayConfig, ...payload };
+        updateTrayMenu();
+      }
       return { ok: true };
     });
 

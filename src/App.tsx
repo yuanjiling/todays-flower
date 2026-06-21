@@ -63,6 +63,7 @@ const STORAGE_KEYS = {
   flowerSelection: 'todays-flower_flower_selection',
   lastVisitDate: 'todays-flower_last_visit_date',
   notificationInterval: 'todays-flower_notification_interval',
+  notificationEnabled: 'todays-flower_notification_enabled',
   notificationMinImportance: 'todays-flower_notification_min_importance',
 } as const;
 
@@ -241,6 +242,59 @@ function DraggableFlowerShell({
   );
 }
 
+const MinimalColorPicker = ({ color, onChange }: { color: string, onChange: (c: string) => void }) => {
+  const [h, setH] = useState(0);
+  const [s, setS] = useState(30);
+  const [l, setL] = useState(95);
+
+  useEffect(() => {
+    if (color.startsWith('hsl(')) {
+      const match = color.match(/hsl\((\d+),\s*(\d+)%,\s*(\d+)%\)/);
+      if (match) {
+        setH(Number(match[1]));
+        setS(Number(match[2]));
+        setL(Number(match[3]));
+      }
+    }
+  }, [color]);
+
+  const updateColor = (newH: number, newS: number, newL: number) => {
+    setH(newH);
+    setS(newS);
+    setL(newL);
+    onChange(`hsl(${newH}, ${newS}%, ${newL}%)`);
+  };
+
+  return (
+    <div className="flex flex-col gap-3 p-2 w-[160px]">
+      <div 
+        className="w-full h-12 rounded-[10px] border border-neutral-200/60" 
+        style={{ backgroundColor: `hsl(${h}, ${s}%, ${l}%)` }} 
+      />
+      <div className="flex flex-col gap-2.5 mt-1">
+        <input 
+          type="range" min="0" max="360" value={h} 
+          onChange={e => updateColor(Number(e.target.value), s, l)} 
+          className="w-full h-2.5 rounded-full appearance-none outline-none minimal-color-range bg-transparent" 
+          style={{ background: 'linear-gradient(to right, #f00 0%, #ff0 17%, #0f0 33%, #0ff 50%, #00f 67%, #f0f 83%, #f00 100%)' }} 
+        />
+        <input 
+          type="range" min="0" max="100" value={s} 
+          onChange={e => updateColor(h, Number(e.target.value), l)} 
+          className="w-full h-2.5 rounded-full appearance-none outline-none minimal-color-range bg-transparent" 
+          style={{ background: `linear-gradient(to right, hsl(${h}, 0%, ${l}%), hsl(${h}, 100%, ${l}%))` }} 
+        />
+        <input 
+          type="range" min="0" max="100" value={l} 
+          onChange={e => updateColor(h, s, Number(e.target.value))} 
+          className="w-full h-2.5 rounded-full appearance-none outline-none minimal-color-range bg-transparent" 
+          style={{ background: `linear-gradient(to right, #000, hsl(${h}, ${s}%, 50%), #fff)` }} 
+        />
+      </div>
+    </div>
+  );
+};
+
 const getVisibleTodoItemsForDate = (items: Item[], targetDate: Date) => {
   const targetYMD = dateToYMD(targetDate);
   const targetTime = new Date(`${targetYMD}T00:00:00`).getTime();
@@ -288,7 +342,7 @@ const buildReminderTaskSummaries = (
   const threshold = Math.min(3, Math.max(1, Math.floor(minImportance || 1)));
 
   return getVisibleTodoItemsForDate(items, targetDate)
-    .filter((item) => !item.completed && item.importance >= threshold && item.title.trim())
+    .filter((item) => item.importance >= threshold && item.title.trim())
     .sort((left, right) => {
       if (right.importance !== left.importance) {
         return right.importance - left.importance;
@@ -301,6 +355,7 @@ const buildReminderTaskSummaries = (
       title: item.title.trim(),
       importance: item.importance,
       flowerId: item.flowerId,
+      completed: !!item.completed,
     }));
 };
 
@@ -1707,9 +1762,9 @@ const FLOWER_SELECTION_GROUPS = [
 ] as const;
 
 const DEFAULT_FLOWER_SELECTION: Record<number, string[]> = {
-  1: ['todo1', 'todo1_pink'],
-  2: ['todo4'],
-  3: ['todo3', 'todo3_white'],
+  1: ['todo3', 'todo3_white', 'todo4'],
+  2: ['todo1', 'todo1_pink', 'todo5', 'todo5_white', 'todo5_v2', 'todo5_white_v2'],
+  3: ['todo_example'],
 };
 
 const FLOWER_SELECTOR_DISPLAY_IDS = FLOWER_SELECTION_GROUPS.map((group) => group.displayId);
@@ -1754,23 +1809,33 @@ const normalizeFlowerSelection = (selection?: Record<number, string[]>) => {
 const MiniFlower = ({ flowerId, selected }: { flowerId: string, selected: boolean }) => {
   if (flowerId === 'todo7') {
     return (
-      <svg width="50" height="50" viewBox="0 0 40 40" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={`transition-colors flex-shrink-0 ${selected ? 'text-white' : 'text-neutral-400 opacity-50'}`}>
-        <path d="M 12 35 Q 6 20 20 5 Q 34 20 28 35" strokeDasharray="1 3" />
-        <circle cx="12" cy="22" r="6" fill="currentColor" fillOpacity="0.2" stroke="none" />
-        <circle cx="26" cy="20" r="7" fill="currentColor" fillOpacity="0.2" stroke="none" />
-        <circle cx="18" cy="28" r="6" fill="currentColor" fillOpacity="0.2" stroke="none" />
+      <svg width="50" height="50" viewBox="5 5 40 40" fill="currentColor" className={`transition-colors flex-shrink-0 ${selected ? 'text-white' : 'text-[#879f3c]'}`}>
+        <path d="M27.69,39.87c-2.99-19.4-6.85-2.7-9.51,5.49,0,0,5.68-11.68,5.64-13,.36-1.48,3,9.5,3.86,7.52Z"/>
+        <path d="M27.3,40.5s5.09-14.12,7.1-14.72c8.78-4.93.28,1.86-7.1,14.96-1.39,1.62,7.86-48.9,6.31-26.42"/>
+        <path d="M27.16,41.34c2.51-11.36-14.01-17.59-23.1-21.79,7.13-.15,28.05,11.87,23.1,21.79Z"/>
+        <path d="M27.69,39.53c-.89-.72-4.56-31.67-14.6-26.28,0,0,11.58-9.31,14.6,26.28Z"/>
+        <path d="M26.97,38.19c.06-1.46,6-34.92,14.76-19.7,0,0-8.26-12.28-14.76,19.7Z"/>
+        <path d="M28.13,38.19c-1.08-6.97,5.64-29.18-10.99-18.76,18.56-8.15,3.75,16.85,10.99,18.76Z"/>
       </svg>
     )
   }
 
   if (flowerId === 'todo8') {
     return (
-      <svg width="50" height="50" viewBox="0 0 40 40" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={`transition-colors flex-shrink-0 ${selected ? 'text-white' : 'text-neutral-400 opacity-50'}`}>
-        <path d="M 20 35 Q 16 20 28 5" />
-        <path d="M 17 25 Q 6 22 4 18" />
-        <path d="M 21 21 Q 32 16 35 12" />
-        <path d="M 19 16 Q 8 13 6 9" />
-        <path d="M 23 12 Q 30 7 32 4" />
+      <svg width="50" height="50" viewBox="5 5 40 40" className={`transition-colors flex-shrink-0 ${selected ? 'text-white' : 'text-[#879f3c]'}`}>
+        <path fill="currentColor" d="M27.28,12.14s-5.93-4.65-4.41-1.85c1.63,1.66,4.48,5.58,4.41,1.85Z"/>
+        <path fill="none" stroke="currentColor" strokeMiterlimit="10" strokeWidth=".75px" d="M26.52,11.99c1.79,7.46-4.98,24.43-3.85,31.35"/>
+        <path fill="currentColor" d="M25.97,23.47s16.08-7.82,11.11-2.59c-2.68,2.01-12.44,5.66-11.11,2.59Z"/>
+        <path fill="currentColor" d="M26.71,20.09s-12.38-8.18-10.92-5.09c1.86,3.49,12.52,7.83,10.92,5.09Z"/>
+        <path fill="currentColor" d="M26.83,16.58s-6.03-4.61-5.88-3.33c.62,3.38,6.72,5.57,5.88,3.33Z"/>
+        <path fill="currentColor" d="M24.79,27.64s8.72-1.62,10.83-3.53c5.05,1.09-13.24,7.44-10.83,3.53Z"/>
+        <path fill="currentColor" d="M23.89,31.79s10.25-4.29,8.55-2.43c-1.96,1.5-9.66,5-8.55,2.43Z"/>
+        <path fill="currentColor" d="M26.16,19.74s15.4-9.51,8.81-2.52c-2.59,1.9-9.85,5.71-8.81,2.52Z"/>
+        <path fill="currentColor" d="M26.42,15.38s6.66-3.53,6.44-2.63c-1.25,2.81-7.29,5.57-6.44,2.63Z"/>
+        <path fill="currentColor" d="M26.49,12.3s4.86-4.41,4.34-2.37c-.89,1.74-5.47,5.45-4.34,2.37Z"/>
+        <path fill="currentColor" d="M25.81,23.87s-12.62-7.54-12.75-6.7c-.74,2.05,13.4,10.9,12.75,6.7Z"/>
+        <path fill="currentColor" d="M25.29,28.07s-10.31-6.97-11.05-6.51c-1.61,1.05,10.8,9,11.05,6.51Z"/>
+        <path fill="currentColor" d="M24.33,31.69s-9.59-6.04-9.31-4.86c.48,2.41,8.4,7.2,9.31,4.86Z"/>
       </svg>
     )
   }
@@ -1800,7 +1865,7 @@ const MiniFlower = ({ flowerId, selected }: { flowerId: string, selected: boolea
   );
 };
   
-const GardenFlower = ({ itemId, flowerId, type, level, completed, isHovered }: { itemId: string, flowerId?: string, type: 'todo' | 'grass', level: number, completed: boolean, isHovered: boolean }) => {
+const GardenFlower = ({ itemId, flowerId, type, level, completed, isHovered, forceSolid }: { itemId: string, flowerId?: string, type: 'todo' | 'grass', level: number, completed: boolean, isHovered: boolean, forceSolid?: boolean }) => {
   const swayParams = useMemo(() => ({
     rotateZ: pseudoRandom(itemId, 1) > 0.5 ? [-0.8, 0.8] : [0.8, -0.8],
     duration: 8 + pseudoRandom(itemId, 2) * 4,
@@ -1902,7 +1967,7 @@ const GardenFlower = ({ itemId, flowerId, type, level, completed, isHovered }: {
            style={{ originX: `${stem.rootOffset.x}px`, originY: `${stem.rootOffset.y}px` }}
            animate={{ 
              scale: isHovered ? actualScale * 1.05 : actualScale,
-             opacity: completed ? 0.35 : (isHovered ? 1 : 0.8)
+             opacity: (completed && !forceSolid) ? 0.35 : (isHovered ? 1 : 0.8)
            }}
            transition={{
              scale: { duration: 0.4, ease: "easeOut" },
@@ -1968,7 +2033,7 @@ const GardenFlower = ({ itemId, flowerId, type, level, completed, isHovered }: {
         style={{ originX: `${anchorX}px`, originY: `${anchorY}px` }}
         animate={{ 
           scale: isHovered ? scale * 1.05 : scale,
-          opacity: completed ? 0.35 : (isHovered ? 1 : 0.8)
+          opacity: (completed && !forceSolid) ? 0.35 : (isHovered ? 1 : 0.8)
         }}
         transition={{
           scale: { duration: 0.4, ease: "easeOut" },
@@ -2390,7 +2455,7 @@ const HorizontalCalendar = ({
   );
 };
 
-const WeatherOverlay = React.memo(({ weather }: { weather: 'sunny' | 'rainy' | 'snowy' }) => {
+const WeatherOverlay = React.memo(({ weather }: { weather: 'sunny' | 'rainy' }) => {
   const rainDrops = useMemo(() => {
     return Array.from({ length: 50 }).map((_, i) => {
       const leftValue = -10 + Math.random() * 140; 
@@ -2399,20 +2464,6 @@ const WeatherOverlay = React.memo(({ weather }: { weather: 'sunny' | 'rainy' | '
       const animationDelay = `-${Math.random() * 5}s`;
       const opacity = 0.3 + Math.random() * 0.4;
       return { left, opacity, animationDuration, animationDelay };
-    });
-  }, []);
-
-  const snowDrops = useMemo(() => {
-    return Array.from({ length: 50 }).map((_, i) => {
-      const leftValue = -10 + Math.random() * 140; 
-      const left = `${leftValue}%`;
-      const animationDuration = `${3 + Math.random() * 5}s`;
-      const animationDelay = `-${Math.random() * 5}s`;
-      const opacity = 0.3 + Math.random() * 0.6;
-      const width = `${2 + Math.random() * 4}px`;
-      const height = `${2 + Math.random() * 4}px`;
-      const translateX = Math.random() > 0.5 ? '20px' : '-20px';
-      return { left, opacity, animationDuration, animationDelay, width, height, translateX };
     });
   }, []);
 
@@ -2440,18 +2491,6 @@ const WeatherOverlay = React.memo(({ weather }: { weather: 'sunny' | 'rainy' | '
           style={{
             left: drop.left, opacity: drop.opacity, animationDuration: drop.animationDuration, animationDelay: drop.animationDelay,
             animation: `fall-rain ${drop.animationDuration} linear infinite ${drop.animationDelay}`
-          }}
-        />
-      ))}
-
-      {weather === 'snowy' && snowDrops.map((drop, i) => (
-        <div
-          key={`s-${i}`}
-          className="absolute top-[-10%] bg-white rounded-full blur-[1px]"
-          style={{
-            left: drop.left, opacity: drop.opacity, animationDuration: drop.animationDuration, animationDelay: drop.animationDelay,
-            width: drop.width, height: drop.height,
-            animation: `fall-snow-${drop.translateX === '20px' ? 'left' : 'right'} ${drop.animationDuration} linear infinite ${drop.animationDelay}`
           }}
         />
       ))}
@@ -2575,7 +2614,9 @@ const NotificationWindow = () => {
   const language = payload?.language === 'zh' ? 'zh' : 'en';
   const t = (en: string, zh: string) => language === 'en' ? en : zh;
   const tasks = payload?.tasks ?? [];
-  const totalTaskCount = payload?.totalTaskCount ?? tasks.length;
+  const uncompleted = tasks.filter(t => !t.completed).slice(0, 4);
+  const completedToday = tasks.filter(t => t.completed).slice(0, 4);
+  const isAllDone = tasks.length > 0 && uncompleted.length === 0;
 
   const requestClose = () => {
     setIsVisible(false);
@@ -2621,51 +2662,56 @@ const NotificationWindow = () => {
             </svg>
           </button>
 
-          <div className="flex flex-col mb-1 relative">
+          <div className={`flex flex-col mb-1 relative ${isAllDone ? 'items-center text-center mt-2' : ''}`}>
             <h3 className="font-serif text-[1.2rem] text-neutral-800 tracking-tight leading-tight mb-0.5 pointer-events-none select-none">
-              {t("Today's Flowerbed", '今日花圃')}
+              {isAllDone ? t("All flowers bloomed today", "今天的花都开了") : t("Today's Flowerbed", "今日花圃")}
             </h3>
             <p className="text-[9px] text-neutral-500 uppercase tracking-widest font-medium opacity-80 pointer-events-none select-none flex flex-col gap-0.5">
-              <span>{totalTaskCount} {t('flowers waiting to bloom', '朵鲜花待绽放')}</span>
+              <span>{isAllDone ? t("Take a little break.", "休息一会儿吧。") : `${uncompleted.length} ${t('flowers waiting to bloom', '朵鲜花待绽放')}`}</span>
             </p>
           </div>
 
-          <div className="flex items-stretch border-t border-neutral-200/50 pt-5 mt-1 relative min-h-[100px]">
-            <div className="flex-1 flex flex-col gap-3.5 justify-center pr-4 min-w-0">
-              {tasks.map((item, index) => (
-                <motion.div
-                  key={item.id}
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.1 + index * 0.1 }}
-                  className="flex items-center gap-3 relative min-w-0"
-                >
-                  <div className="w-1.5 h-1.5 rounded-full border border-neutral-400 opacity-60 flex-shrink-0" />
-                  <span className="text-[13px] leading-tight text-neutral-700 font-medium truncate max-w-[150px]">
-                    {item.title}
-                  </span>
-                </motion.div>
-              ))}
-            </div>
-            <div className="w-[110px] relative border-l border-neutral-200/30 self-stretch min-h-[100px]">
+          <div className={`flex items-stretch border-t border-neutral-200/50 pt-5 mt-1 relative min-h-[100px] ${isAllDone ? 'justify-center border-none pt-2' : ''}`}>
+            {!isAllDone && (
+              <div className="flex-1 flex flex-col gap-3.5 justify-center pr-4 min-w-0">
+                {uncompleted.map((item, idx) => (
+                  <motion.div
+                    key={item.id}
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.1 + idx * 0.1 }}
+                    className="flex items-center gap-3 relative min-w-0"
+                  >
+                    <div className="w-1.5 h-1.5 rounded-full border border-neutral-400 opacity-60 flex-shrink-0" />
+                    <span className="text-[13px] leading-tight text-neutral-700 font-medium truncate max-w-[150px]">
+                      {item.title}
+                    </span>
+                  </motion.div>
+                ))}
+              </div>
+            )}
+
+            <div className={`relative self-stretch min-h-[100px] ${isAllDone ? 'w-[280px]' : 'w-[110px] border-l border-neutral-200/30'}`}>
               <div
-                className="absolute bottom-[-15px] right-0 w-[140px] h-[200px] pointer-events-none"
+                className={`absolute bottom-[-15px] pointer-events-none ${isAllDone ? 'w-full h-[200px] left-1/2 -translate-x-1/2 flex justify-center' : 'right-0 w-[140px] h-[200px]'}`}
                 style={{
                   maskImage: 'linear-gradient(to top, transparent 0%, black 15%, black 100%)',
                   WebkitMaskImage: 'linear-gradient(to top, transparent 0%, black 15%, black 100%)',
                 }}
               >
-                {[...tasks].reverse().map((item, reverseIndex) => {
-                  const index = tasks.length - 1 - reverseIndex;
+                {(isAllDone ? completedToday : uncompleted).slice().reverse().map((item, reverseIndex, arr) => {
+                  const idx = arr.length - 1 - reverseIndex;
 
                   return (
                     <motion.div
                       key={item.id}
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.2 + index * 0.1, type: 'spring', stiffness: 300 }}
+                      transition={{ delay: 0.2 + idx * 0.1, type: 'spring', stiffness: 300 }}
                       className="absolute bottom-0"
-                      style={{ right: `${-50 + index * 22}px` }}
+                      style={isAllDone 
+                        ? { left: `calc(50% - 90px + ${(idx - (arr.length - 1) / 2) * 50}px)` }
+                        : { right: `${-50 + idx * 22}px` }}
                     >
                       <div style={{ transform: 'scale(0.35)', transformOrigin: 'bottom center' }}>
                         <div className="relative flex justify-center items-center w-[180px] h-[220px]">
@@ -2674,8 +2720,9 @@ const NotificationWindow = () => {
                             flowerId={item.flowerId}
                             type="todo"
                             level={item.importance || 1}
-                            completed={false}
+                            completed={isAllDone ? true : item.completed}
                             isHovered={false}
+                            forceSolid={isAllDone}
                           />
                         </div>
                       </div>
@@ -2718,14 +2765,17 @@ export default function App() {
   const [isWishlistSearchVisible, setIsWishlistSearchVisible] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
+  const [isBgColorPickerOpen, setIsBgColorPickerOpen] = useState(false);
   const [visibleGuides, setVisibleGuides] = useState<string[]>([]);
   const [bgColor, setBgColor] = useState('#F9F8F6');
   const isDarkBg = getLuminance(bgColor) < 128;
-  const [weather, setWeather] = useState<'sunny' | 'rainy' | 'snowy'>('sunny');
+  const [weather, setWeather] = useState<'sunny' | 'rainy'>('sunny');
   const [language, setLanguage] = useState<'en' | 'zh'>('en');
-  const [maxCompletedFlowers, setMaxCompletedFlowers] = useState(10);
-  const [maxUncompletedFlowers, setMaxUncompletedFlowers] = useState(10);
+  const [maxCompletedFlowers, setMaxCompletedFlowers] = useState(6);
+  const [maxUncompletedFlowers, setMaxUncompletedFlowers] = useState(8);
   const [notificationInterval, setNotificationInterval] = useState(60);
+  const [isNotificationEnabled, setIsNotificationEnabled] = useState(true);
+  const [isIntervalDropdownOpen, setIsIntervalDropdownOpen] = useState(false);
   const [notificationMinImportance, setNotificationMinImportance] = useState(1);
   const [launchAtLogin, setLaunchAtLogin] = useState(false);
   const [launchAtLoginStatus, setLaunchAtLoginStatus] = useState<'idle' | 'saving' | 'error'>('idle');
@@ -2755,7 +2805,7 @@ export default function App() {
     const bg = readStoredValue(STORAGE_KEYS.backgroundColor, LEGACY_STORAGE_KEYS.backgroundColor);
     if (bg) setBgColor(bg);
     const w = readStoredValue(STORAGE_KEYS.weather, LEGACY_STORAGE_KEYS.weather);
-    if (w === 'rainy' || w === 'snowy' || w === 'sunny') setWeather(w);
+    if (w === 'rainy' || w === 'sunny') setWeather(w);
     const l = readStoredValue(STORAGE_KEYS.language, LEGACY_STORAGE_KEYS.language);
     if (l === 'en' || l === 'zh') setLanguage(l);
 
@@ -2782,6 +2832,9 @@ export default function App() {
       LEGACY_STORAGE_KEYS.notificationInterval,
     );
     if (ni) setNotificationInterval(parseInt(ni, 10));
+    
+    const ne = readStoredValue(STORAGE_KEYS.notificationEnabled);
+    if (ne === 'false') setIsNotificationEnabled(false);
     const nmi = readStoredValue(
       STORAGE_KEYS.notificationMinImportance,
       LEGACY_STORAGE_KEYS.notificationMinImportance,
@@ -2832,6 +2885,11 @@ export default function App() {
     localStorage.setItem(STORAGE_KEYS.notificationInterval, v.toString());
   };
 
+  const saveNotificationEnabled = (enabled: boolean) => {
+    setIsNotificationEnabled(enabled);
+    localStorage.setItem(STORAGE_KEYS.notificationEnabled, enabled.toString());
+  };
+
   const saveNotificationMinImportance = (v: number) => {
     setNotificationMinImportance(v);
     localStorage.setItem(STORAGE_KEYS.notificationMinImportance, v.toString());
@@ -2859,7 +2917,7 @@ export default function App() {
     localStorage.setItem(STORAGE_KEYS.backgroundColor, c);
   };
 
-  const saveWeather = (w: 'sunny' | 'rainy' | 'snowy') => {
+  const saveWeather = (w: 'sunny' | 'rainy') => {
     setWeather(w);
     localStorage.setItem(STORAGE_KEYS.weather, w);
   };
@@ -2904,38 +2962,7 @@ export default function App() {
         setItems(JSON.parse(saved));
       } catch (e) {}
     } else {
-      const initialItems: Item[] = [];
-      const positions: {x: number, y: number}[] = [];
-      const currentYMD = dateToYMD(today);
-      
-      const seedData = [
-        { title: 'Compile minimalist inspiration board', type: 'todo', importance: 3, showUntilDays: 1, isDaily: false, isLight: false, int: 3, speed: 2, steps: [{ id: '1', title: 'Gather references', completed: false }] },
-        { title: 'Prepare tea ritual', type: 'todo', importance: 1, showUntilDays: 0, isDaily: true, isLight: true, int: 2, speed: 1, steps: [] },
-        { title: 'Archive weekend photos', type: 'todo', importance: 2, showUntilDays: 3, isDaily: false, isLight: false, int: 2, speed: 2, steps: [] },
-        { title: 'Isamu Noguchi Akari Lamp', type: 'grass', importance: 3, showUntilDays: 0, isDaily: false, isLight: false, int: 3, speed: 3, steps: [] },
-      ] as const;
-
-      seedData.forEach((data, i) => {
-         const pos = getValidPosition(positions);
-         positions.push(pos);
-         initialItems.push({
-           id: (i+1).toString(),
-           title: data.title,
-           completed: false,
-           type: data.type as ItemType,
-           importance: data.importance,
-           showUntilDays: data.showUntilDays,
-           isDaily: data.isDaily,
-           isLight: data.isLight,
-           steps: [...data.steps],
-           interest: data.int,
-           speedLevel: data.speed,
-           createdAt: Date.now() - (4000 - i * 1000),
-           dateStr: currentYMD,
-           position: pos
-         });
-      });
-      setItems(initialItems);
+      setItems([]);
     }
     setIsLoaded(true);
   }, []);
@@ -2974,11 +3001,29 @@ export default function App() {
     }
 
     void desktopBridge.updateReminderState({
-      intervalMinutes: notificationInterval,
+      intervalMinutes: isNotificationEnabled ? notificationInterval : 0,
       language,
       tasks: reminderTasks,
     });
-  }, [isLoaded, language, notificationInterval, reminderTasks]);
+    
+    void desktopBridge.updateTrayMenu({
+      lang: language,
+      isNotificationEnabled,
+      notificationInterval,
+    });
+  }, [isLoaded, language, notificationInterval, isNotificationEnabled, reminderTasks]);
+
+  useEffect(() => {
+    if (!desktopBridge.isElectron) return;
+
+    return desktopBridge.onTraySettingsChanged((payload) => {
+      setIsNotificationEnabled(payload.isNotificationEnabled);
+      localStorage.setItem(STORAGE_KEYS.notificationEnabled, String(payload.isNotificationEnabled));
+      
+      setNotificationInterval(payload.notificationInterval);
+      localStorage.setItem(STORAGE_KEYS.notificationInterval, String(payload.notificationInterval));
+    });
+  }, []);
 
   const handleAddItem = (e: React.FormEvent) => {
     e.preventDefault();
@@ -3977,33 +4022,74 @@ export default function App() {
                 <div className="pt-4 border-t border-neutral-200/50">
                   <h3 className="text-xs uppercase tracking-widest text-neutral-500 mb-4">{t('Appearance', '外观')}</h3>
                   <div className="space-y-3">
-                    <div className="flex justify-between items-center gap-4">
+                    <div className="flex justify-between items-center gap-4 relative">
                       <span className="text-sm text-neutral-700">{t('Background Color', '背景颜色')}</span>
-                      <div className="flex items-center gap-2">
-                        <input 
-                          type="color"
-                          value={bgColor}
-                          onChange={(e) => saveBgColor(e.target.value)}
-                          className="w-6 h-6 rounded cursor-pointer border-0 p-0 overflow-hidden"
-                        />
-                        <input 
-                          type="text"
-                          value={bgColor}
-                          onChange={(e) => saveBgColor(e.target.value)}
-                          className="w-20 bg-transparent border-b border-neutral-300 text-center text-sm outline-none pb-1 uppercase"
-                        />
+                      <div className="flex items-center gap-3">
+                        {['#F9F8F6', '#fad6df', '#1f3c6b'].map(preset => (
+                          <button
+                            key={preset}
+                            onClick={() => saveBgColor(preset)}
+                            className={`w-5 h-5 rounded-full transition-all duration-300 ease-out shadow-sm ${bgColor.toLowerCase() === preset.toLowerCase() ? 'ring-1 ring-offset-0 ring-neutral-400 scale-110' : 'ring-0 ring-offset-0 ring-transparent'}`}
+                            style={{ backgroundColor: preset }}
+                            title={preset}
+                            aria-label={`Select preset color ${preset}`}
+                          />
+                        ))}
+                        <div className="w-px h-3 bg-neutral-200 mx-0.5" />
+                        <div className="relative">
+                          <button 
+                            onClick={() => setIsBgColorPickerOpen(!isBgColorPickerOpen)}
+                            className={`w-5 h-5 rounded-full transition-all duration-300 ease-out flex items-center justify-center shadow-sm ${!['#f9f8f6', '#fad6df', '#1f3c6b'].includes(bgColor.toLowerCase()) ? 'ring-1 ring-offset-0 ring-neutral-400 scale-110' : 'ring-0 ring-offset-0 ring-transparent'}`}
+                            style={{ 
+                              background: !['#f9f8f6', '#fad6df', '#1f3c6b'].includes(bgColor.toLowerCase()) 
+                                ? bgColor 
+                                : '#f3f4f6'
+                            }}
+                            title={t('Custom Color', '自定义颜色')}
+                          >
+                            {['#f9f8f6', '#fad6df', '#1f3c6b'].includes(bgColor.toLowerCase()) && (
+                               <svg viewBox="0 0 24 24" fill="none" className="w-3 h-3 text-neutral-400" stroke="currentColor" strokeWidth="2.5">
+                                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                               </svg>
+                            )}
+                          </button>
+                          
+                          {/* Mini Custom Palette Popover */}
+                          <AnimatePresence>
+                            {isBgColorPickerOpen && (
+                              <>
+                                <div 
+                                  className="fixed inset-0 z-40" 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setIsBgColorPickerOpen(false);
+                                  }} 
+                                />
+                                <motion.div
+                                  initial={{ opacity: 0, y: -5, scale: 0.95 }}
+                                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                                  exit={{ opacity: 0, y: -5, scale: 0.95 }}
+                                  transition={{ duration: 0.15 }}
+                                  className="absolute right-0 top-8 bg-white/80 backdrop-blur-2xl border border-white/50 shadow-2xl rounded-[1.25rem] z-50 overflow-hidden"
+                                >
+                                  <MinimalColorPicker color={bgColor} onChange={saveBgColor} />
+                                </motion.div>
+                              </>
+                            )}
+                          </AnimatePresence>
+                        </div>
                       </div>
                     </div>
                     <div className="flex justify-between items-center mt-4">
                       <span className="text-sm text-neutral-700">{t('Weather', '天气')}</span>
                       <div className="flex bg-neutral-100 rounded-lg p-1">
-                         {(['sunny', 'rainy', 'snowy'] as const).map(w => (
+                         {(['sunny', 'rainy'] as const).map(w => (
                             <button
                                key={w}
                                onClick={() => saveWeather(w)}
                                className={`px-3 py-1 text-xs capitalize rounded-md transition-all ${weather === w ? 'bg-white shadow-sm text-neutral-900 font-medium' : 'text-neutral-500 hover:text-neutral-700'}`}
                             >
-                               {t(w, w === 'sunny' ? '晴天' : w === 'rainy' ? '下雨' : '下雪')}
+                               {t(w, w === 'sunny' ? '晴天' : '下雨')}
                             </button>
                          ))}
                       </div>
@@ -4050,16 +4136,81 @@ export default function App() {
                 </div>
 
                 <div className="pt-4 border-t border-neutral-200/50">
-                  <h3 className="text-xs uppercase tracking-widest text-neutral-500 mb-4">{t('System Notification Reminder', '系统通知提醒')}</h3>
-                  <div className="space-y-4">
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-neutral-700">{t('Reminder Interval (minutes, 0 to disable)', '多久提示一次 (分钟，0为关闭)')}</span>
-                      <input 
-                        type="number" min="0" max="1440"
-                        value={notificationInterval}
-                        onChange={(e) => saveNotificationInterval(parseInt(e.target.value) || 0)}
-                        className="w-16 bg-transparent border-b border-neutral-300 text-center text-sm outline-none pb-1"
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-xs uppercase tracking-widest text-neutral-500">{t('System Notification Reminder', '系统通知提醒')}</h3>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={isNotificationEnabled}
+                      onClick={() => saveNotificationEnabled(!isNotificationEnabled)}
+                      className={`w-10 h-6 flex items-center rounded-full transition-colors p-1 ${isNotificationEnabled ? 'bg-neutral-800' : 'bg-neutral-200'}`}
+                    >
+                      <motion.div
+                        layout
+                        className="w-4 h-4 bg-white rounded-full shadow-sm"
+                        animate={{ x: isNotificationEnabled ? 16 : 0 }}
+                        transition={{ type: "spring", stiffness: 500, damping: 30 }}
                       />
+                    </button>
+                  </div>
+                  <div className={`space-y-4 transition-opacity duration-300 ${isNotificationEnabled ? 'opacity-100' : 'opacity-40 pointer-events-none'}`}>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-neutral-700">{t('Reminder Interval (minutes)', '提醒间隔 (分钟)')}</span>
+                      <div className="relative flex items-center">
+                        <input 
+                          type="number" min="1" max="1440"
+                          value={notificationInterval}
+                          onChange={(e) => saveNotificationInterval(parseInt(e.target.value) || 60)}
+                          className="w-16 bg-transparent border-b border-neutral-300 text-center text-sm outline-none pb-1"
+                        />
+                        <button 
+                          onClick={() => setIsIntervalDropdownOpen(!isIntervalDropdownOpen)}
+                          className="ml-1 p-1 rounded-full hover:bg-neutral-100 text-neutral-400 transition-colors"
+                        >
+                          <svg viewBox="0 0 24 24" fill="none" className="w-3.5 h-3.5" stroke="currentColor" strokeWidth="2.5">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 9l6 6 6-6" />
+                          </svg>
+                        </button>
+
+                        <AnimatePresence>
+                          {isIntervalDropdownOpen && (
+                            <>
+                              <div 
+                                className="fixed inset-0 z-40" 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setIsIntervalDropdownOpen(false);
+                                }} 
+                              />
+                              <motion.div
+                                initial={{ opacity: 0, y: -5, scale: 0.95 }}
+                                animate={{ opacity: 1, y: 0, scale: 1 }}
+                                exit={{ opacity: 0, y: -5, scale: 0.95 }}
+                                transition={{ duration: 0.15 }}
+                                className="absolute right-0 top-8 bg-white/90 backdrop-blur-xl border border-neutral-200 shadow-xl rounded-xl z-50 overflow-hidden w-28 py-1"
+                              >
+                                {[
+                                  { value: 30, label: '30m' },
+                                  { value: 60, label: '1h (60m)' },
+                                  { value: 120, label: '2h (120m)' },
+                                  { value: 180, label: '3h (180m)' }
+                                ].map(preset => (
+                                  <button
+                                    key={preset.value}
+                                    onClick={() => {
+                                      saveNotificationInterval(preset.value);
+                                      setIsIntervalDropdownOpen(false);
+                                    }}
+                                    className={`w-full text-left px-4 py-2 text-xs transition-colors ${notificationInterval === preset.value ? 'bg-neutral-100 text-neutral-900 font-medium' : 'text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900'}`}
+                                  >
+                                    {preset.label}
+                                  </button>
+                                ))}
+                              </motion.div>
+                            </>
+                          )}
+                        </AnimatePresence>
+                      </div>
                     </div>
                     <div className="flex justify-between items-center mt-4">
                       <span className="text-sm text-neutral-700">{t('Minimum Reminder', '最低提醒')}</span>
@@ -4150,7 +4301,7 @@ export default function App() {
               <div className="flex justify-between items-center mb-6">
                 <div className="flex flex-col">
                    <h2 className="font-serif text-[22px] md:text-[24px] text-neutral-800 tracking-tight leading-tight mb-1">{t('What shall we plant today?', '今天想种点什么？')}</h2>
-                   <p className="text-xs text-neutral-400 font-sans tracking-wide">{t('Choose which flowers your tasks grow into.', '选择任务会长成...')}</p>
+                   <p className="text-xs text-neutral-400 font-sans tracking-wide">{t('Choose which flowers your tasks grow into.', '选择任务会长成哪种花。')}</p>
                 </div>
                 <button onClick={() => setIsFlowerSelectorOpen(false)} className="w-8 h-8 flex shrink-0 items-center justify-center rounded-full bg-neutral-100 hover:bg-neutral-200 text-neutral-500 transition-colors ml-4">
                   <X size={16} />
@@ -4233,7 +4384,18 @@ export default function App() {
                 </button>
                 <button 
                   onClick={() => {
+                    const defaultFlowerSelection = normalizeFlowerSelection();
                     setItems([]);
+                    setFlowerSelection(defaultFlowerSelection);
+                    saveBgColor('#F9F8F6');
+                    saveWeather('sunny');
+                    saveLanguage('en');
+                    saveMaxCompleted(6);
+                    saveMaxUncompleted(8);
+                    saveNotificationInterval(60);
+                    saveNotificationEnabled(true);
+                    saveNotificationMinImportance(1);
+                    localStorage.setItem(STORAGE_KEYS.flowerSelection, JSON.stringify(defaultFlowerSelection));
                     setIsResetConfirmOpen(false);
                     setIsSettingsOpen(false);
                   }}

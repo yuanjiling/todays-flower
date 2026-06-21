@@ -64,6 +64,14 @@ const webFallback: TodaysFlowerDesktopApi = {
       ok: true as const,
     };
   },
+  async updateTrayMenu() {
+    return {
+      ok: true as const,
+    };
+  },
+  onTraySettingsChanged() {
+    return () => {};
+  },
   onReminderWindowPayload() {
     return () => {};
   },

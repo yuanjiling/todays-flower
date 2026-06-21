@@ -42,6 +42,24 @@ const desktopApi = {
   async showMainWindow() {
     return ipcRenderer.invoke('desktop:show-main-window');
   },
+  async updateTrayMenu(payload) {
+    return ipcRenderer.invoke('desktop:update-tray-menu', payload);
+  },
+  onTraySettingsChanged(callback) {
+    if (typeof callback !== 'function') {
+      return () => {};
+    }
+
+    const listener = (_event, payload) => {
+      callback(payload);
+    };
+
+    ipcRenderer.on('desktop:tray-settings-changed', listener);
+
+    return () => {
+      ipcRenderer.removeListener('desktop:tray-settings-changed', listener);
+    };
+  },
   onReminderWindowPayload(callback) {
     if (typeof callback !== 'function') {
       return () => {};
