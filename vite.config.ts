@@ -6,7 +6,7 @@ import {defineConfig} from 'vite';
 export default defineConfig(() => {
   const isGitHubPages = process.env.GITHUB_PAGES === 'true';
   return {
-    base: isGitHubPages ? '/todays-flower/' : '/',
+    base: isGitHubPages ? '/todays-flower/' : './',
     plugins: [react(), tailwindcss()],
     build: {
       rollupOptions: {
