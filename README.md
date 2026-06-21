@@ -1,5 +1,5 @@
 ﻿<div align="center">
-  <img src="build/icon.png" width="120" alt="Today's Flower Logo" />
+  <img src="assets/icon.png" width="120" alt="Today's Flower Logo" />
   <h1>Today's Flower</h1>
   <p>一个弱秩序的花园式桌面待办。</p>
 </div>
