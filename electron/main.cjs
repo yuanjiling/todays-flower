@@ -136,7 +136,7 @@ function updateTrayMenu() {
     },
     { type: 'separator' },
     {
-      label: t('Enable Reminders', '开�?关闭提醒'),
+      label: t('Enable Reminders', '任务提醒'),
       type: 'checkbox',
       checked: trayConfig.isNotificationEnabled,
       click: (menuItem) => {
@@ -358,7 +358,7 @@ function legacyBuildReminderNotificationDetails() {
     return {
       title:
         reminderState.language === 'zh'
-          ? `今日花圃 · 待绽�?${tasks.length} �?{groupSuffix}`
+          ? `今日花圃 · 待绽�?${tasks.length} �?{groupSuffix}`
           : `Today's Flower Garden · ${tasks.length} Waiting to Bloom${groupSuffix}`,
       body: bodyLines.join('\n'),
       silent: chunkIndex > 0,
@@ -457,13 +457,11 @@ function showReminderNotification() {
   });
 
   if (isDev) {
-    reminderWindow.loadURL(`${process.env.VITE_DEV_SERVER_URL}?notification=1`);
+    reminderWindow.loadURL(`${process.env.VITE_DEV_SERVER_URL}/notification.html`);
     return;
   }
 
-  reminderWindow.loadFile(path.join(__dirname, '..', 'dist', 'index.html'), {
-    query: { notification: '1' },
-  });
+  reminderWindow.loadFile(path.join(__dirname, '..', 'dist', 'notification.html'));
 }
 
 function scheduleReminderTimer() {
