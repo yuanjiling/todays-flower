@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const { app, BrowserWindow, ipcMain, Notification, screen } = require('electron');
+const { app, BrowserWindow, ipcMain, Menu, Notification, Tray, screen } = require('electron');
 
 const APP_ID = 'com.aia.todaysflower';
 const DEFAULT_TITLE = "Today's Flower";
@@ -57,6 +57,8 @@ let mainWindow = null;
 let reminderWindow = null;
 let reminderTimer = null;
 let lastReminderAt = 0;
+let tray = null;
+let isQuitting = false;
 
 const reminderState = {
   intervalMinutes: 0,
@@ -65,6 +67,7 @@ const reminderState = {
 };
 
 const isDev = Boolean(process.env.VITE_DEV_SERVER_URL);
+const gotSingleInstanceLock = app.requestSingleInstanceLock();
 
 function buildRuntimeInfo() {
   return {
@@ -95,7 +98,8 @@ function setLaunchAtLogin(openAtLogin) {
 }
 
 function focusMainWindow() {
-  if (!mainWindow) {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    createWindow();
     return;
   }
 
@@ -105,6 +109,46 @@ function focusMainWindow() {
 
   mainWindow.show();
   mainWindow.focus();
+}
+
+function getTrayIconPath() {
+  const pngPath = path.join(__dirname, '..', 'build', 'icon.png');
+  const icoPath = path.join(__dirname, '..', 'build', 'icon.ico');
+
+  if (fs.existsSync(pngPath)) {
+    return pngPath;
+  }
+
+  return icoPath;
+}
+
+function createTray() {
+  if (tray) {
+    return;
+  }
+
+  tray = new Tray(getTrayIconPath());
+  tray.setToolTip(DEFAULT_TITLE);
+  tray.setContextMenu(
+    Menu.buildFromTemplate([
+      {
+        label: '打开应用',
+        click: () => {
+          focusMainWindow();
+        },
+      },
+      {
+        label: 'Quit',
+        click: () => {
+          isQuitting = true;
+          app.quit();
+        },
+      },
+    ]),
+  );
+  tray.on('click', () => {
+    focusMainWindow();
+  });
 }
 
 function createWindow() {
@@ -127,6 +171,19 @@ function createWindow() {
 
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
+  });
+
+  mainWindow.on('close', (event) => {
+    if (isQuitting) {
+      return;
+    }
+
+    event.preventDefault();
+    mainWindow.hide();
+  });
+
+  mainWindow.on('closed', () => {
+    mainWindow = null;
   });
 
   if (isDev) {
@@ -405,103 +462,116 @@ function getMainWindowFromEvent(event) {
   return mainWindow;
 }
 
-app.whenReady().then(() => {
-  app.setAppUserModelId(APP_ID);
-  ipcMain.handle('desktop:get-runtime-info', () => buildRuntimeInfo());
-  ipcMain.handle('desktop:get-launch-at-login', () => getLaunchAtLoginSettings());
-  ipcMain.handle('desktop:set-launch-at-login', (_event, payload) =>
-    setLaunchAtLogin(payload?.openAtLogin),
-  );
-  ipcMain.handle('desktop:notify', (_event, payload) => {
-    if (!Notification.isSupported()) {
-      return { shown: false, reason: 'unsupported' };
-    }
-
-    const detail = normalizeNotificationPayload(payload);
-    const notification = new Notification(detail);
-
-    notification.on('click', () => {
+if (!gotSingleInstanceLock) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    if (app.isReady()) {
       focusMainWindow();
+    }
+  });
 
-      if (mainWindow) {
-        mainWindow.webContents.send('desktop:notification-clicked', detail);
+  app.whenReady().then(() => {
+    app.setAppUserModelId(APP_ID);
+    ipcMain.handle('desktop:get-runtime-info', () => buildRuntimeInfo());
+    ipcMain.handle('desktop:get-launch-at-login', () => getLaunchAtLoginSettings());
+    ipcMain.handle('desktop:set-launch-at-login', (_event, payload) =>
+      setLaunchAtLogin(payload?.openAtLogin),
+    );
+    ipcMain.handle('desktop:notify', (_event, payload) => {
+      if (!Notification.isSupported()) {
+        return { shown: false, reason: 'unsupported' };
       }
+
+      const detail = normalizeNotificationPayload(payload);
+      const notification = new Notification(detail);
+
+      notification.on('click', () => {
+        focusMainWindow();
+
+        if (mainWindow) {
+          mainWindow.webContents.send('desktop:notification-clicked', detail);
+        }
+      });
+
+      notification.show();
+
+      return { shown: true };
+    });
+    ipcMain.handle('desktop:update-reminder-state', (_event, payload) => {
+      const nextState = normalizeReminderState(payload);
+
+      reminderState.intervalMinutes = nextState.intervalMinutes;
+      reminderState.language = nextState.language;
+      reminderState.tasks = nextState.tasks;
+
+      scheduleReminderTimer();
+
+      return { ok: true };
+    });
+    ipcMain.handle('desktop:minimize-main-window', (event) => {
+      const win = getMainWindowFromEvent(event);
+
+      if (win && !win.isDestroyed()) {
+        win.minimize();
+      }
+
+      return { ok: true };
+    });
+    ipcMain.handle('desktop:toggle-maximize-main-window', (event) => {
+      const win = getMainWindowFromEvent(event);
+
+      if (!win || win.isDestroyed()) {
+        return { ok: true, isMaximized: false };
+      }
+
+      if (win.isMaximized()) {
+        win.unmaximize();
+      } else {
+        win.maximize();
+      }
+
+      return { ok: true, isMaximized: win.isMaximized() };
+    });
+    ipcMain.handle('desktop:close-main-window', (event) => {
+      const win = getMainWindowFromEvent(event);
+
+      if (win && !win.isDestroyed()) {
+        win.close();
+      }
+
+      return { ok: true };
+    });
+    ipcMain.handle('desktop:close-reminder-window', () => {
+      closeReminderWindow();
+      return { ok: true };
+    });
+    ipcMain.handle('desktop:show-main-window', () => {
+      focusMainWindow();
+      return { ok: true };
     });
 
-    notification.show();
+    createTray();
+    createWindow();
 
-    return { shown: true };
+    app.on('activate', () => {
+      if (BrowserWindow.getAllWindows().length === 0) {
+        createWindow();
+        return;
+      }
+
+      focusMainWindow();
+    });
   });
-  ipcMain.handle('desktop:update-reminder-state', (_event, payload) => {
-    const nextState = normalizeReminderState(payload);
 
-    reminderState.intervalMinutes = nextState.intervalMinutes;
-    reminderState.language = nextState.language;
-    reminderState.tasks = nextState.tasks;
-
-    scheduleReminderTimer();
-
-    return { ok: true };
+  app.on('before-quit', () => {
+    isQuitting = true;
   });
-  ipcMain.handle('desktop:minimize-main-window', (event) => {
-    const win = getMainWindowFromEvent(event);
 
-    if (win && !win.isDestroyed()) {
-      win.minimize();
+  app.on('window-all-closed', () => {
+    if (isQuitting) {
+      clearReminderTimer();
+      closeReminderWindow();
     }
-
-    return { ok: true };
   });
-  ipcMain.handle('desktop:toggle-maximize-main-window', (event) => {
-    const win = getMainWindowFromEvent(event);
-
-    if (!win || win.isDestroyed()) {
-      return { ok: true, isMaximized: false };
-    }
-
-    if (win.isMaximized()) {
-      win.unmaximize();
-    } else {
-      win.maximize();
-    }
-
-    return { ok: true, isMaximized: win.isMaximized() };
-  });
-  ipcMain.handle('desktop:close-main-window', (event) => {
-    const win = getMainWindowFromEvent(event);
-
-    if (win && !win.isDestroyed()) {
-      win.close();
-    }
-
-    return { ok: true };
-  });
-  ipcMain.handle('desktop:close-reminder-window', () => {
-    closeReminderWindow();
-    return { ok: true };
-  });
-  ipcMain.handle('desktop:show-main-window', () => {
-    focusMainWindow();
-    return { ok: true };
-  });
-
-  createWindow();
-
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow();
-      return;
-    }
-
-    focusMainWindow();
-  });
-});
-
-app.on('window-all-closed', () => {
-  clearReminderTimer();
-  closeReminderWindow();
-
-  if (process.platform !== 'darwin') {
-    app.quit();
-  }
-});
+}

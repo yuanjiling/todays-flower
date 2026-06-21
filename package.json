@@ -39,6 +39,7 @@
     "electron": "^42.4.1",
     "electron-builder": "^26.15.3",
     "esbuild": "^0.25.0",
+    "icon-gen": "^5.0.0",
     "tailwindcss": "^4.1.14",
     "tsx": "^4.21.0",
     "typescript": "~5.8.2",
@@ -47,6 +48,7 @@
   },
   "build": {
     "appId": "com.aia.todaysflower",
+    "artifactName": "${productName}-${version}-${arch}.${ext}",
     "productName": "Today's Flower",
     "directories": {
       "output": "release"
@@ -54,17 +56,32 @@
     "files": [
       "dist/**/*",
       "electron/**/*",
+      "build/icon.png",
+      "build/icon.ico",
       "package.json"
     ],
     "asar": true,
     "win": {
       "target": [
         "nsis"
-      ]
+      ],
+      "icon": "build/icon.ico"
+    },
+    "mac": {
+      "target": [
+        "dmg"
+      ],
+      "icon": "build/icon.icns",
+      "category": "public.app-category.productivity",
+      "artifactName": "${productName}-${version}-${arch}.${ext}"
     },
     "nsis": {
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true
+      "allowToChangeInstallationDirectory": true,
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "createDesktopShortcut": true,
+      "shortcutName": "Today's Flower"
     }
   }
 }
