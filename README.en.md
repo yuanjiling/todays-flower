@@ -14,6 +14,8 @@
 
 Write down today's tasks and let them grow and bloom in the garden. At the end, you will see a garden that belongs to today.
 
+[Try the web version](https://yuanjiling.github.io/todays-flower/) (system reminders are unavailable on the web version)
+
 ![Today's Flower app screenshot](docs/screenshot-main.png)
 
 ## Origin / Credits

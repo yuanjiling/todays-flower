@@ -14,6 +14,8 @@
 
 写下今天的任务，让它们在花园中生长、开放。最后，你会看见一座属于今天的花园。
 
+[网页版试用](https://yuanjiling.github.io/todays-flower/)（无系统提醒功能）
+
 ![Today's Flower 应用截图](docs/screenshot-main.png)
 
 ## 来源 / 致谢
