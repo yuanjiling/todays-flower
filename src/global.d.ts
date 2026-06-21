@@ -40,7 +40,7 @@ declare global {
     openAtLogin: boolean;
   };
 
-  interface JflowDesktopApi extends DesktopRuntimeInfo {
+  interface TodaysFlowerDesktopApi extends DesktopRuntimeInfo {
     getRuntimeInfo: () => Promise<DesktopRuntimeInfo>;
     getLaunchAtLogin: () => Promise<DesktopLaunchAtLoginSettings>;
     setLaunchAtLogin: (
@@ -48,6 +48,9 @@ declare global {
     ) => Promise<DesktopLaunchAtLoginSettings>;
     notify: (payload: DesktopNotificationPayload) => Promise<DesktopNotificationResult>;
     updateReminderState: (payload: DesktopReminderStatePayload) => Promise<{ ok: true }>;
+    minimizeMainWindow: () => Promise<{ ok: true }>;
+    toggleMaximizeMainWindow: () => Promise<{ ok: true; isMaximized: boolean }>;
+    closeMainWindow: () => Promise<{ ok: true }>;
     closeReminderWindow: () => Promise<{ ok: true }>;
     showMainWindow: () => Promise<{ ok: true }>;
     onReminderWindowPayload: (
@@ -58,7 +61,10 @@ declare global {
     ) => () => void;
   }
 
+  type JflowDesktopApi = TodaysFlowerDesktopApi;
+
   interface Window {
-    jflowDesktop?: JflowDesktopApi;
+    todaysFlowerDesktop?: TodaysFlowerDesktopApi;
+    jflowDesktop?: TodaysFlowerDesktopApi;
   }
 }

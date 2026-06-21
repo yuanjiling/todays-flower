@@ -1,9 +1,9 @@
 {
-  "name": "react-example",
+  "name": "todays-flower",
   "private": true,
-  "version": "0.0.0",
-  "description": "Desktop-first personal todo app shell for J-Flow.",
-  "author": "OpenAI Codex",
+  "version": "1.0.1",
+  "description": "Desktop-first personal todo app for Today's Flower.",
+  "author": "SS S",
   "type": "module",
   "main": "electron/main.cjs",
   "scripts": {
@@ -21,10 +21,8 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
-    "@google/genai": "^2.4.0",
     "@tailwindcss/vite": "^4.1.14",
     "@vitejs/plugin-react": "^5.0.4",
-    "dotenv": "^17.2.3",
     "express": "^4.21.2",
     "lucide-react": "^0.546.0",
     "motion": "^12.23.24",
@@ -48,8 +46,8 @@
     "wait-on": "^9.0.10"
   },
   "build": {
-    "appId": "com.aia.todo",
-    "productName": "Todo Desktop",
+    "appId": "com.aia.todaysflower",
+    "productName": "Today's Flower",
     "directories": {
       "output": "release"
     },

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { flushSync } from 'react-dom';
 import { motion, AnimatePresence, Reorder, useMotionValue } from 'motion/react';
-import { X, Sprout, List, ArchiveRestore, Archive, Pencil, CalendarPlus, Search, GripVertical } from 'lucide-react';
+import { X, Sprout, List, ArchiveRestore, Archive, Pencil, CalendarPlus, Search, GripVertical, Settings, Minus, Square } from 'lucide-react';
 import { desktopBridge } from './platform/desktop.ts';
 
 type ItemType = 'todo' | 'grass';
@@ -53,7 +53,138 @@ const pseudoRandom = (id: string, seed: number) => {
   return x - Math.floor(x);
 };
 
+const STORAGE_KEYS = {
+  items: 'todays-flower_items_v7',
+  maxCompletedFlowers: 'todays-flower_max_completed_flowers',
+  maxUncompletedFlowers: 'todays-flower_max_uncompleted_flowers',
+  backgroundColor: 'todays-flower_bg_color',
+  weather: 'todays-flower_weather',
+  language: 'todays-flower_language',
+  flowerSelection: 'todays-flower_flower_selection',
+  lastVisitDate: 'todays-flower_last_visit_date',
+  notificationInterval: 'todays-flower_notification_interval',
+  notificationMinImportance: 'todays-flower_notification_min_importance',
+} as const;
+
+const LEGACY_STORAGE_KEYS = {
+  items: ['jflow_items_v7'],
+  maxCompletedFlowers: ['jflow_max_cb'],
+  maxUncompletedFlowers: ['jflow_max_ucb'],
+  backgroundColor: ['jflow_bg_color'],
+  weather: ['jflow_weather'],
+  language: ['jflow_lang'],
+  flowerSelection: ['jflow_flower_selection'],
+  lastVisitDate: ['jflow_last_visit_date'],
+  notificationInterval: ['jflow_notif_interval'],
+  notificationMinImportance: ['jflow_notif_min_imp'],
+} as const;
+
+const readStoredValue = (key: string, legacyKeys: readonly string[] = []) => {
+  for (const candidate of [key, ...legacyKeys]) {
+    const value = localStorage.getItem(candidate);
+
+    if (value !== null) {
+      if (candidate !== key) {
+        localStorage.setItem(key, value);
+      }
+
+      return value;
+    }
+  }
+
+  return null;
+};
+
 type DragOffset = { x: number; y: number };
+
+const dragRegionStyle = { WebkitAppRegion: 'drag' } as React.CSSProperties;
+const noDragRegionStyle = { WebkitAppRegion: 'no-drag' } as React.CSSProperties;
+
+type TitleBarProps = {
+  onOpenSettings: () => void;
+  t: (en: string, zh: string) => string;
+};
+
+const TitleBar = ({ onOpenSettings, t }: TitleBarProps) => {
+  const [timeStr, setTimeStr] = useState('');
+
+  useEffect(() => {
+    const updateTime = () => {
+      const now = new Date();
+      setTimeStr(now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+    };
+
+    updateTime();
+    const timer = window.setInterval(updateTime, 1000);
+
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, []);
+
+  const handleMinimize = () => {
+    void desktopBridge.minimizeMainWindow();
+  };
+
+  const handleToggleMaximize = () => {
+    void desktopBridge.toggleMaximizeMainWindow();
+  };
+
+  const handleClose = () => {
+    void desktopBridge.closeMainWindow();
+  };
+
+  return (
+    <div
+      className="fixed top-0 left-0 right-0 h-10 flex items-center justify-between px-4 z-[9000]"
+      style={dragRegionStyle}
+      onDoubleClick={handleToggleMaximize}
+    >
+      <div className="text-[13px] font-medium text-neutral-500/80 pointer-events-none select-none tracking-wide">
+        {timeStr}
+      </div>
+
+      <div
+        className="flex items-center gap-1.5"
+        style={noDragRegionStyle}
+        onDoubleClick={(event) => event.stopPropagation()}
+      >
+        <button
+          onClick={onOpenSettings}
+          className="w-[26px] h-[26px] flex items-center justify-center rounded-full hover:bg-black/5 text-neutral-400 hover:text-neutral-600 transition-colors cursor-pointer"
+          title={t('Settings', '设置')}
+          aria-label={t('Settings', '设置')}
+        >
+          <Settings size={14} strokeWidth={2} />
+        </button>
+        <button
+          onClick={handleMinimize}
+          className="w-[26px] h-[26px] flex items-center justify-center rounded-full hover:bg-black/5 text-neutral-400 hover:text-neutral-600 transition-colors cursor-pointer"
+          title={t('Minimize', '最小化')}
+          aria-label={t('Minimize', '最小化')}
+        >
+          <Minus size={14} strokeWidth={2.5} />
+        </button>
+        <button
+          onClick={handleToggleMaximize}
+          className="w-[26px] h-[26px] flex items-center justify-center rounded-full hover:bg-black/5 text-neutral-400 hover:text-neutral-600 transition-colors cursor-pointer"
+          title={t('Maximize', '最大化')}
+          aria-label={t('Maximize', '最大化')}
+        >
+          <Square size={12} strokeWidth={2.5} />
+        </button>
+        <button
+          onClick={handleClose}
+          className="w-[26px] h-[26px] flex items-center justify-center rounded-full hover:bg-red-500 hover:text-white text-neutral-400 transition-colors cursor-pointer ml-1"
+          title={t('Close', '关闭')}
+          aria-label={t('Close', '关闭')}
+        >
+          <X size={14} strokeWidth={2.5} />
+        </button>
+      </div>
+    </div>
+  );
+};
 
 interface DraggableFlowerShellProps {
   key?: React.Key;
@@ -1943,7 +2074,7 @@ const YearMonthPicker = ({
   }, [isOpen, currentDate]);
 
   return (
-    <div className="absolute top-6 left-1/2 -translate-x-1/2 z-50 pointer-events-auto flex flex-col items-center">
+    <div className="absolute top-6 left-1/2 -translate-x-1/2 z-[10000] pointer-events-auto flex flex-col items-center" style={noDragRegionStyle}>
        <button 
          onClick={() => setIsOpen(!isOpen)}
          className="text-[14px] font-serif tracking-[0.1em] text-neutral-500 hover:text-neutral-900 transition-colors"
@@ -2336,6 +2467,55 @@ const WeatherOverlay = React.memo(({ weather }: { weather: 'sunny' | 'rainy' | '
   );
 });
 
+const GuideBubble = ({
+  id,
+  visible,
+  onDismiss,
+  positionClasses,
+  text,
+  pointerSvg,
+}: {
+  id: string;
+  visible: boolean;
+  onDismiss: (id: string) => void;
+  positionClasses: string;
+  text: string;
+  pointerSvg?: React.ReactNode;
+}) => {
+  return (
+    <AnimatePresence>
+      {visible && (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.85, y: 15 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.85, y: 15 }}
+          transition={{ type: "spring", stiffness: 350, damping: 25 }}
+          className={`absolute z-[9999] pointer-events-auto flex items-start gap-3 bg-white/70 backdrop-blur-xl border border-white/60 shadow-[0_8px_32px_rgba(0,0,0,0.1)] rounded-2xl p-4 text-[12px] font-medium text-neutral-700 tracking-wide max-w-[280px] min-w-[200px] leading-relaxed ${positionClasses}`}
+        >
+          {pointerSvg && (
+            <div className="absolute inset-0 pointer-events-none z-[-1]">
+              {pointerSvg}
+            </div>
+          )}
+          <span className="flex-1 break-words">{text}</span>
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              onDismiss(id);
+            }}
+            className="shrink-0 mt-0.5 w-5 h-5 flex items-center justify-center rounded-full bg-black/5 hover:bg-black/10 text-neutral-500 transition-colors cursor-pointer"
+            aria-label="Dismiss guide"
+            title="Dismiss guide"
+          >
+            <X size={12} strokeWidth={2.5} />
+          </button>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+};
+
 const NotificationWindow = () => {
   const [payload, setPayload] = useState<DesktopReminderStatePayload | null>(null);
   const [isVisible, setIsVisible] = useState(false);
@@ -2372,7 +2552,6 @@ const NotificationWindow = () => {
   const t = (en: string, zh: string) => language === 'en' ? en : zh;
   const tasks = payload?.tasks ?? [];
   const totalTaskCount = payload?.totalTaskCount ?? tasks.length;
-  const remainingTaskCount = Math.max(0, totalTaskCount - tasks.length);
 
   const requestClose = () => {
     setIsVisible(false);
@@ -2424,14 +2603,6 @@ const NotificationWindow = () => {
             </h3>
             <p className="text-[9px] text-neutral-500 uppercase tracking-widest font-medium opacity-80 pointer-events-none select-none flex flex-col gap-0.5">
               <span>{totalTaskCount} {t('flowers waiting to bloom', '朵鲜花待绽放')}</span>
-              {remainingTaskCount > 0 && (
-                <span>
-                  {t(
-                    `+ ${remainingTaskCount} more in today's garden`,
-                    `还有 ${remainingTaskCount} 株在今日花园里`,
-                  )}
-                </span>
-              )}
             </p>
           </div>
 
@@ -2522,6 +2693,8 @@ export default function App() {
   const [wishlistSearchQuery, setWishlistSearchQuery] = useState('');
   const [isWishlistSearchVisible, setIsWishlistSearchVisible] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
+  const [visibleGuides, setVisibleGuides] = useState<string[]>([]);
   const [bgColor, setBgColor] = useState('#F9F8F6');
   const [weather, setWeather] = useState<'sunny' | 'rainy' | 'snowy'>('sunny');
   const [language, setLanguage] = useState<'en' | 'zh'>('en');
@@ -2538,40 +2711,56 @@ export default function App() {
   const isDraggingRef = useRef(false);
   const canvasRef = useRef<HTMLDivElement>(null);
 
+  const dismissGuide = (guideId: string) => {
+    setVisibleGuides((prev) => prev.filter((id) => id !== guideId));
+  };
+
   // Load preferences
   useEffect(() => {
-    const mc = localStorage.getItem('jflow_max_cb');
+    const mc = readStoredValue(
+      STORAGE_KEYS.maxCompletedFlowers,
+      LEGACY_STORAGE_KEYS.maxCompletedFlowers,
+    );
     if (mc) setMaxCompletedFlowers(parseInt(mc, 10));
-    const mu = localStorage.getItem('jflow_max_ucb');
+    const mu = readStoredValue(
+      STORAGE_KEYS.maxUncompletedFlowers,
+      LEGACY_STORAGE_KEYS.maxUncompletedFlowers,
+    );
     if (mu) setMaxUncompletedFlowers(parseInt(mu, 10));
-    const bg = localStorage.getItem('jflow_bg_color');
+    const bg = readStoredValue(STORAGE_KEYS.backgroundColor, LEGACY_STORAGE_KEYS.backgroundColor);
     if (bg) setBgColor(bg);
-    const w = localStorage.getItem('jflow_weather');
+    const w = readStoredValue(STORAGE_KEYS.weather, LEGACY_STORAGE_KEYS.weather);
     if (w === 'rainy' || w === 'snowy' || w === 'sunny') setWeather(w);
-    const l = localStorage.getItem('jflow_lang');
+    const l = readStoredValue(STORAGE_KEYS.language, LEGACY_STORAGE_KEYS.language);
     if (l === 'en' || l === 'zh') setLanguage(l);
 
-    const fs = localStorage.getItem('jflow_flower_selection');
+    const fs = readStoredValue(STORAGE_KEYS.flowerSelection, LEGACY_STORAGE_KEYS.flowerSelection);
     if (fs) {
       try { 
         const parsed = JSON.parse(fs) as Record<number, string[]>;
         const normalized = normalizeFlowerSelection(parsed);
         setFlowerSelection(normalized);
-        localStorage.setItem('jflow_flower_selection', JSON.stringify(normalized));
+        localStorage.setItem(STORAGE_KEYS.flowerSelection, JSON.stringify(normalized));
       } catch (e) {}
     }
     
     // Automatically open modal on daily first startup
-    const visitDate = localStorage.getItem('jflow_last_visit_date');
+    const visitDate = readStoredValue(STORAGE_KEYS.lastVisitDate, LEGACY_STORAGE_KEYS.lastVisitDate);
     const todayStr = dateToYMD(today);
     if (visitDate !== todayStr) {
       setIsFlowerSelectorOpen(true);
-      localStorage.setItem('jflow_last_visit_date', todayStr);
+      localStorage.setItem(STORAGE_KEYS.lastVisitDate, todayStr);
     }
     
-    const ni = localStorage.getItem('jflow_notif_interval');
+    const ni = readStoredValue(
+      STORAGE_KEYS.notificationInterval,
+      LEGACY_STORAGE_KEYS.notificationInterval,
+    );
     if (ni) setNotificationInterval(parseInt(ni, 10));
-    const nmi = localStorage.getItem('jflow_notif_min_imp');
+    const nmi = readStoredValue(
+      STORAGE_KEYS.notificationMinImportance,
+      LEGACY_STORAGE_KEYS.notificationMinImportance,
+    );
     if (nmi) setNotificationMinImportance(parseInt(nmi, 10));
   }, []);
 
@@ -2605,22 +2794,22 @@ export default function App() {
 
   const saveMaxCompleted = (v: number) => {
     setMaxCompletedFlowers(v);
-    localStorage.setItem('jflow_max_cb', v.toString());
+    localStorage.setItem(STORAGE_KEYS.maxCompletedFlowers, v.toString());
   };
 
   const saveMaxUncompleted = (v: number) => {
     setMaxUncompletedFlowers(v);
-    localStorage.setItem('jflow_max_ucb', v.toString());
+    localStorage.setItem(STORAGE_KEYS.maxUncompletedFlowers, v.toString());
   };
   
   const saveNotificationInterval = (v: number) => {
     setNotificationInterval(v);
-    localStorage.setItem('jflow_notif_interval', v.toString());
+    localStorage.setItem(STORAGE_KEYS.notificationInterval, v.toString());
   };
 
   const saveNotificationMinImportance = (v: number) => {
     setNotificationMinImportance(v);
-    localStorage.setItem('jflow_notif_min_imp', v.toString());
+    localStorage.setItem(STORAGE_KEYS.notificationMinImportance, v.toString());
   };
 
   const saveLaunchAtLogin = async (enabled: boolean) => {
@@ -2642,17 +2831,17 @@ export default function App() {
   };
   const saveBgColor = (c: string) => {
     setBgColor(c);
-    localStorage.setItem('jflow_bg_color', c);
+    localStorage.setItem(STORAGE_KEYS.backgroundColor, c);
   };
 
   const saveWeather = (w: 'sunny' | 'rainy' | 'snowy') => {
     setWeather(w);
-    localStorage.setItem('jflow_weather', w);
+    localStorage.setItem(STORAGE_KEYS.weather, w);
   };
 
   const saveLanguage = (l: 'en' | 'zh') => {
     setLanguage(l);
-    localStorage.setItem('jflow_lang', l);
+    localStorage.setItem(STORAGE_KEYS.language, l);
   };
 
   const t = (en: string, zh: string) => language === 'en' ? en : zh;
@@ -2684,7 +2873,7 @@ export default function App() {
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    const saved = localStorage.getItem('jflow_items_v7');
+    const saved = readStoredValue(STORAGE_KEYS.items, LEGACY_STORAGE_KEYS.items);
     if (saved) {
       try {
         setItems(JSON.parse(saved));
@@ -2728,7 +2917,7 @@ export default function App() {
 
   useEffect(() => {
     if (isLoaded) {
-      localStorage.setItem('jflow_items_v7', JSON.stringify(items));
+      localStorage.setItem(STORAGE_KEYS.items, JSON.stringify(items));
     }
   }, [items, isLoaded]);
 
@@ -3076,6 +3265,7 @@ export default function App() {
       style={{ backgroundColor: bgColor }}
       onClick={() => inputRef.current?.blur()}
     >
+      <TitleBar t={t} onOpenSettings={() => setIsSettingsOpen(true)} />
       <WeatherOverlay weather={weather} />
       <YearMonthPicker 
         t={t}
@@ -3100,6 +3290,62 @@ export default function App() {
         }} 
       />
 
+      <GuideBubble
+        id="monthPicker"
+        visible={visibleGuides.includes('monthPicker') && !isSettingsOpen && !isWishlistModalOpen}
+        onDismiss={dismissGuide}
+        positionClasses="top-[25px] left-1/2 ml-[80px] md:ml-[110px]"
+        text={t('Click here to jump to a specific month or year.', '点击此处可以选择指定的年月。')}
+        pointerSvg={
+          <svg className="absolute top-4 -left-[60px] w-[60px] h-10 overflow-visible text-neutral-400/80" stroke="currentColor" fill="none" strokeWidth="1.5">
+            <path d="M 60 10 Q 30 10 0 0" strokeDasharray="4 4" strokeLinecap="round" />
+            <circle cx="0" cy="0" r="2.5" fill="currentColor" stroke="none" />
+          </svg>
+        }
+      />
+      <GuideBubble
+        id={activeTab === 'todo' ? 'todo-title' : 'grass-title'}
+        visible={visibleGuides.includes(activeTab === 'todo' ? 'todo-title' : 'grass-title') && !isSettingsOpen && !isWishlistModalOpen}
+        onDismiss={dismissGuide}
+        positionClasses="top-[205px] left-1/2 -translate-x-[260px] md:-translate-x-[330px]"
+        text={activeTab === 'todo'
+          ? t('Click the title to choose the flower for today.', '点击标题，可更换今日各项任务要种的花种。')
+          : t('Welcome to the garden. Click the title to view the full wishlist.', '欢迎来到种草花园，点击标题即可查看完整的种草清单。')}
+        pointerSvg={
+          <svg className="absolute -top-[76px] right-[-110px] w-[110px] h-[86px] overflow-visible text-neutral-400/80" stroke="currentColor" fill="none" strokeWidth="1.5">
+            <path d="M 0 76 Q 44 34 110 0" strokeDasharray="4 4" strokeLinecap="round" />
+            <circle cx="110" cy="0" r="2.5" fill="currentColor" stroke="none" />
+          </svg>
+        }
+      />
+      <GuideBubble
+        id="timeline"
+        visible={visibleGuides.includes('timeline') && !isSettingsOpen && !isWishlistModalOpen}
+        onDismiss={dismissGuide}
+        positionClasses="top-[150px] left-1/2 ml-[160px] md:ml-[240px]"
+        text={t('Scroll or drag horizontally to switch dates.', '滚动鼠标滚轮或左右滑动，来切换查看不同日期。')}
+        pointerSvg={
+          <svg className="absolute -top-[58px] left-1/2 -translate-x-1/2 w-[40px] h-[58px] overflow-visible text-neutral-400/80" stroke="currentColor" fill="none" strokeWidth="1.5">
+            <path d="M 20 58 Q 20 28 20 0" strokeDasharray="4 4" strokeLinecap="round" />
+            <circle cx="20" cy="0" r="2.5" fill="currentColor" stroke="none" />
+          </svg>
+        }
+      />
+      <GuideBubble
+        id={activeTab === 'todo' ? 'todo-input' : 'grass-input'}
+        visible={visibleGuides.includes(activeTab === 'todo' ? 'todo-input' : 'grass-input') && !isSettingsOpen && !isWishlistModalOpen}
+        onDismiss={dismissGuide}
+        positionClasses="bottom-[100px] md:bottom-[110px] left-1/2 ml-[10%] md:ml-[20%]"
+        text={activeTab === 'todo'
+          ? t('Enter your task here. Click the left icon to break it into steps.', '在此输入任务。点击输入框左侧图标，可将任务拆分为分步任务。')
+          : t('Enter your wishlist idea here.', '在此输入你的种草事项。')}
+        pointerSvg={
+          <svg className="absolute -bottom-[40px] -left-[40px] w-[40px] h-[40px] overflow-visible text-neutral-400/80" stroke="currentColor" fill="none" strokeWidth="1.5">
+            <path d="M 40 0 Q 20 20 0 40" strokeDasharray="4 4" strokeLinecap="round" />
+            <circle cx="0" cy="40" r="2.5" fill="currentColor" stroke="none" />
+          </svg>
+        }
+      />
       {/* Nav */}
       <div className="absolute bottom-12 left-6 md:left-14 flex flex-col gap-6 text-[10px] md:text-[11px] uppercase tracking-[0.2em] font-medium text-neutral-400 z-40 mix-blend-multiply">
         <button 
@@ -3464,7 +3710,7 @@ export default function App() {
             }}
             rows={isMultiline ? 4 : 1}
             placeholder={activeTab === 'todo' ? (isMultiline ? t('Main Task\n- Step 1\n- Step 2\n...', '主任务\n- 步骤 1\n- 步骤 2\n...') : 'Let your tasks flower...') : 'Let this idea take root'}
-            className={`w-full text-center bg-white/30 backdrop-blur-xl border border-white/50 shadow-[0_8px_32px_rgba(0,0,0,0.04)] rounded-3xl ${activeTab === 'todo' ? 'px-14' : 'px-8'} py-4 md:py-5 font-serif text-base md:text-lg outline-none placeholder:text-neutral-400 focus:bg-white/60 focus:border-white transition-all duration-500 font-light resize-none`}
+            className={`w-full text-center bg-white/30 backdrop-blur-xl border border-white/50 shadow-[0_8px_32px_rgba(0,0,0,0.04)] rounded-3xl ${activeTab === 'todo' ? 'px-14' : 'px-8'} py-4 md:py-5 font-serif text-base md:text-lg outline-none placeholder:text-neutral-400 focus:bg-white/60 focus:border-white transition-all duration-500 font-light resize-none hide-scrollbar`}
             style={{ minHeight: isMultiline ? '120px' : '60px' }}
           />
 
@@ -3532,7 +3778,7 @@ export default function App() {
               </div>
               <div className="overflow-y-auto p-4 flex-1 slim-black-scrollbar">
                 {items.filter(i => i.type === 'grass').length === 0 ? (
-                  <p className="text-center text-neutral-400 py-10 font-serif">{t('Your flower garden is empty. Plant something for later.', '空空如也...先种下一件以后想做的事吧。')}</p>
+                  <p className="text-center text-neutral-400 py-10 font-serif">{t('Your garden is empty. Plant something for later.', '花园空空如也...先种下一件以后想做的事吧。')}</p>
                 ) : (
                     <Reorder.Group axis="y" values={items.filter(i => i.type === 'grass').filter(i => wishlistSearchQuery === '' || (i.title && i.title.toLowerCase().includes(wishlistSearchQuery.toLowerCase()))).sort((a,b) => {
                       const orderA = a.order ?? Number.MAX_SAFE_INTEGER;
@@ -3647,6 +3893,56 @@ export default function App() {
 
               <div className="overflow-y-auto p-6 md:p-8 flex-1 slim-black-scrollbar space-y-6">
                 <div>
+                  <h3 className="text-xs uppercase tracking-widest text-neutral-500 mb-4">{t('System', '系统')}</h3>
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-neutral-700">{t('Launch on Startup', '开机自启动')}</span>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={launchAtLogin}
+                        disabled={!desktopBridge.isElectron || launchAtLoginStatus === 'saving'}
+                        onClick={() => {
+                          void saveLaunchAtLogin(!launchAtLogin);
+                        }}
+                        className={`w-10 h-6 flex items-center rounded-full transition-colors p-1 disabled:cursor-not-allowed disabled:opacity-50 ${launchAtLogin ? 'bg-neutral-800' : 'bg-neutral-200'}`}
+                      >
+                        <motion.div
+                          layout
+                          className="w-4 h-4 bg-white rounded-full shadow-sm"
+                          animate={{ x: launchAtLogin ? 16 : 0 }}
+                          transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                        />
+                      </button>
+                    </div>
+                    {launchAtLoginStatus === 'error' && (
+                      <p className="text-[11px] leading-5 text-red-500">
+                        {t('Failed to update startup setting.', '更新开机自启动设置失败。')}
+                      </p>
+                    )}
+                    <div className="flex justify-between items-center mt-4">
+                      <span className="text-sm text-neutral-700">{t('User Guide', '使用指南')}</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsSettingsOpen(false);
+                          setVisibleGuides([
+                            'monthPicker',
+                            'timeline',
+                            'todo-title',
+                            'grass-title',
+                            'todo-input',
+                            'grass-input',
+                          ]);
+                        }}
+                        className="px-4 py-1.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-600 text-xs font-medium rounded-full transition-colors cursor-pointer"
+                      >
+                        {t('Show Guide', '显示指南')}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <div className="pt-4 border-t border-neutral-200/50">
                   <h3 className="text-xs uppercase tracking-widest text-neutral-500 mb-4">{t('Appearance', '外观')}</h3>
                   <div className="space-y-3">
                     <div className="flex justify-between items-center gap-4">
@@ -3698,7 +3994,7 @@ export default function App() {
                 </div>
                 
                 <div className="pt-4 border-t border-neutral-200/50">
-                  <h3 className="text-xs uppercase tracking-widest text-neutral-500 mb-4">{t('Wishlist Display', '草单主页显示')}</h3>
+                  <h3 className="text-xs uppercase tracking-widest text-neutral-500 mb-4">{t('Wishlist Display', '种草页显示')}</h3>
                   <div className="space-y-4">
                     <div className="flex justify-between items-center">
                       <span className="text-sm text-neutral-700">{t('Max Completed Flowers', '最大已完成数量')}</span>
@@ -3725,7 +4021,7 @@ export default function App() {
                   <h3 className="text-xs uppercase tracking-widest text-neutral-500 mb-4">{t('System Notification Reminder', '系统通知提醒')}</h3>
                   <div className="space-y-4">
                     <div className="flex justify-between items-center">
-                      <span className="text-sm text-neutral-700">{t('Reminder Interval (minutes, 0 to disable)', '间隔多久提示一次 (分钟，0为关闭)')}</span>
+                      <span className="text-sm text-neutral-700">{t('Reminder Interval (minutes, 0 to disable)', '多久提示一次 (分钟，0为关闭)')}</span>
                       <input 
                         type="number" min="0" max="1440"
                         value={notificationInterval}
@@ -3734,7 +4030,7 @@ export default function App() {
                       />
                     </div>
                     <div className="flex justify-between items-center mt-4">
-                      <span className="text-sm text-neutral-700">{t('Minimum Reminder Level', '最低提醒级别')}</span>
+                      <span className="text-sm text-neutral-700">{t('Minimum Reminder', '最低提醒')}</span>
                       <div className="flex bg-neutral-100 rounded-lg p-1">
                          {[
                            { value: 1, zhLabel: '普通' },
@@ -3755,37 +4051,6 @@ export default function App() {
                 </div>
 
                 <div className="pt-4 border-t border-neutral-200/50">
-                  <h3 className="text-xs uppercase tracking-widest text-neutral-500 mb-4">{t('System', '系统')}</h3>
-                  <div className="space-y-4">
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-neutral-700">{t('Launch on Startup', '开机自启动')}</span>
-                      <button
-                        type="button"
-                        role="switch"
-                        aria-checked={launchAtLogin}
-                        disabled={!desktopBridge.isElectron || launchAtLoginStatus === 'saving'}
-                        onClick={() => {
-                          void saveLaunchAtLogin(!launchAtLogin);
-                        }}
-                        className={`w-10 h-6 flex items-center rounded-full transition-colors p-1 disabled:cursor-not-allowed disabled:opacity-50 ${launchAtLogin ? 'bg-neutral-800' : 'bg-neutral-200'}`}
-                      >
-                        <motion.div
-                          layout
-                          className="w-4 h-4 bg-white rounded-full shadow-sm"
-                          animate={{ x: launchAtLogin ? 16 : 0 }}
-                          transition={{ type: "spring", stiffness: 500, damping: 30 }}
-                        />
-                      </button>
-                    </div>
-                    {launchAtLoginStatus === 'error' && (
-                      <p className="text-[11px] leading-5 text-red-500">
-                        {t('Failed to update startup setting.', '鏇存柊寮€鏈鸿嚜鍚姩璁剧疆澶辫触銆?')}
-                      </p>
-                    )}
-                  </div>
-                </div>
-
-                <div className="pt-4 border-t border-neutral-200/50">
                   <h3 className="text-xs uppercase tracking-widest text-neutral-500 mb-4">{t('Data', '数据')}</h3>
                   <div className="flex flex-col gap-3">
                     <button 
@@ -3793,7 +4058,7 @@ export default function App() {
                         const dataUrl = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(items));
                         const a = document.createElement('a'); 
                         a.href = dataUrl; 
-                        a.download = 'jflow_backup.json'; 
+                        a.download = "Today's Flower Backup.json"; 
                         a.click();
                       }}
                       className="text-left text-sm text-neutral-700 hover:text-black py-2"
@@ -3819,10 +4084,8 @@ export default function App() {
                       />
                     </label>
                     <button 
-                      onClick={() => {
-                        if (window.confirm(t('Are you sure you want to delete all data?', '确定要删除所有数据吗？'))) { setItems([]); setIsSettingsOpen(false); }
-                      }}
-                      className="text-left text-sm text-red-500 hover:text-red-700 py-2 mt-2"
+                      onClick={() => setIsResetConfirmOpen(true)}
+                      className="text-left text-sm text-red-500 hover:text-red-600 transition-colors py-2 mt-2"
                     >
                       {t('Reset App', '重置应用')}
                     </button>
@@ -3855,7 +4118,7 @@ export default function App() {
               <div className="flex justify-between items-center mb-6">
                 <div className="flex flex-col">
                    <h2 className="font-serif text-[22px] md:text-[24px] text-neutral-800 tracking-tight leading-tight mb-1">{t('What shall we plant today?', '今天想种点什么？')}</h2>
-                   <p className="text-xs text-neutral-400 font-sans tracking-wide">{t('Choose which flowers your tasks grow into.', '选择任务会长成哪种花。')}</p>
+                   <p className="text-xs text-neutral-400 font-sans tracking-wide">{t('Choose which flowers your tasks grow into.', '选择任务会长成...')}</p>
                 </div>
                 <button onClick={() => setIsFlowerSelectorOpen(false)} className="w-8 h-8 flex shrink-0 items-center justify-center rounded-full bg-neutral-100 hover:bg-neutral-200 text-neutral-500 transition-colors ml-4">
                   <X size={16} />
@@ -3888,7 +4151,7 @@ export default function App() {
                                 ? curr.filter(x => !groupIds.includes(x))
                                 : [...curr, ...groupIds.filter(gId => !curr.includes(gId))];
                               const nextMap = { ...prev, [activeFlowerTab]: updated };
-                              localStorage.setItem('jflow_flower_selection', JSON.stringify(nextMap));
+                              localStorage.setItem(STORAGE_KEYS.flowerSelection, JSON.stringify(nextMap));
                               return nextMap;
                            });
                         }}
@@ -3900,6 +4163,52 @@ export default function App() {
                       </div>
                     )
                  })}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      {/* Reset Confirmation Modal */}
+      <AnimatePresence>
+        {isResetConfirmOpen && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[60] flex items-center justify-center p-6 backdrop-blur-[2px] bg-black/10"
+            onClick={() => setIsResetConfirmOpen(false)}
+          >
+            <motion.div 
+              initial={{ opacity: 0, y: 15, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 10, scale: 0.95 }}
+              transition={{ type: "spring", stiffness: 350, damping: 25 }}
+              className="bg-white/95 backdrop-blur-xl border border-neutral-200/60 shadow-[0_16px_40px_rgba(0,0,0,0.1)] rounded-[1.5rem] w-[85vw] max-w-[320px] p-5 md:p-6 flex flex-col items-center text-center"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <h3 className="font-serif text-[18px] md:text-[20px] text-neutral-900 tracking-tight mb-1.5">
+                {t('Reset App', '重置应用')}
+              </h3>
+              <p className="text-[12px] text-neutral-500 leading-relaxed mb-5">
+                {t('Are you sure you want to delete all data? This action cannot be undone.', '确定要删除所有数据吗？此操作无法撤销。')}
+              </p>
+              <div className="flex gap-3 w-full">
+                <button 
+                  onClick={() => setIsResetConfirmOpen(false)}
+                  className="flex-1 py-2.5 rounded-full bg-neutral-100 hover:bg-neutral-200 text-neutral-600 text-[11px] font-medium tracking-wider uppercase transition-colors"
+                >
+                  {t('Cancel', '取消')}
+                </button>
+                <button 
+                  onClick={() => {
+                    setItems([]);
+                    setIsResetConfirmOpen(false);
+                    setIsSettingsOpen(false);
+                  }}
+                  className="flex-1 py-2.5 rounded-full bg-red-500 hover:bg-red-600 text-white text-[11px] font-medium tracking-wider uppercase transition-colors shadow-sm shadow-red-500/20"
+                >
+                  {t('Delete', '确认删除')}
+                </button>
               </div>
             </motion.div>
           </motion.div>

@@ -1,13 +1,57 @@
+const fs = require('fs');
 const path = require('path');
 const { app, BrowserWindow, ipcMain, Notification, screen } = require('electron');
 
-const APP_ID = 'com.aia.todo';
-const DEFAULT_TITLE = 'J-Flow';
+const APP_ID = 'com.aia.todaysflower';
+const DEFAULT_TITLE = "Today's Flower";
 const DEFAULT_LANGUAGE = 'en';
 const REMINDER_MIN_DELAY_MS = 1000;
 const REMINDER_TASKS_PER_NOTIFICATION = 4;
 const REMINDER_WINDOW_WIDTH = 430;
 const REMINDER_WINDOW_HEIGHT = 320;
+const USER_DATA_DIR_NAME = 'todays-flower';
+const LEGACY_USER_DATA_DIR_NAMES = ['react-example', 'j-flow', "Today's Flower"];
+
+const APP_DATA_PATH = app.getPath('appData');
+const USER_DATA_PATH = path.join(APP_DATA_PATH, USER_DATA_DIR_NAME);
+
+function hasProfileData(dirPath) {
+  return ['Local Storage', 'Session Storage', 'Preferences'].some((entry) =>
+    fs.existsSync(path.join(dirPath, entry)),
+  );
+}
+
+function migrateLegacyUserData() {
+  if (hasProfileData(USER_DATA_PATH)) {
+    return;
+  }
+
+  for (const legacyName of LEGACY_USER_DATA_DIR_NAMES) {
+    const sourcePath = path.join(APP_DATA_PATH, legacyName);
+
+    if (sourcePath === USER_DATA_PATH || !hasProfileData(sourcePath)) {
+      continue;
+    }
+
+    fs.mkdirSync(USER_DATA_PATH, { recursive: true });
+
+    for (const entry of fs.readdirSync(sourcePath)) {
+      const sourceEntryPath = path.join(sourcePath, entry);
+      const targetEntryPath = path.join(USER_DATA_PATH, entry);
+
+      if (fs.existsSync(targetEntryPath)) {
+        continue;
+      }
+
+      fs.cpSync(sourceEntryPath, targetEntryPath, { recursive: true });
+    }
+
+    return;
+  }
+}
+
+app.setPath('userData', USER_DATA_PATH);
+migrateLegacyUserData();
 
 let mainWindow = null;
 let reminderWindow = null;
@@ -65,11 +109,13 @@ function focusMainWindow() {
 
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 1440,
-    height: 960,
-    minWidth: 1120,
-    minHeight: 760,
+    width: 1280,
+    height: 720,
+    minWidth: 1000,
+    minHeight: 600,
     show: false,
+    frame: false,
+    titleBarStyle: 'hidden',
     autoHideMenuBar: true,
     backgroundColor: '#f7f4ea',
     webPreferences: {
@@ -217,8 +263,8 @@ function legacyBuildReminderNotificationDetails() {
     return {
       title:
         reminderState.language === 'zh'
-          ? `今日花圃 ꕤ 待绽放 ${tasks.length} 株${groupSuffix}`
-          : `Today's Flower Garden ꕤ ${tasks.length} Waiting to Bloom${groupSuffix}`,
+          ? `今日花圃 �?待绽�?${tasks.length} �?{groupSuffix}`
+          : `Today's Flower Garden �?${tasks.length} Waiting to Bloom${groupSuffix}`,
       body: bodyLines.join('\n'),
       silent: chunkIndex > 0,
     };
@@ -349,6 +395,16 @@ function scheduleReminderTimer() {
   }, delay);
 }
 
+function getMainWindowFromEvent(event) {
+  const senderWindow = BrowserWindow.fromWebContents(event.sender);
+
+  if (senderWindow === mainWindow) {
+    return senderWindow;
+  }
+
+  return mainWindow;
+}
+
 app.whenReady().then(() => {
   app.setAppUserModelId(APP_ID);
   ipcMain.handle('desktop:get-runtime-info', () => buildRuntimeInfo());
@@ -384,6 +440,39 @@ app.whenReady().then(() => {
     reminderState.tasks = nextState.tasks;
 
     scheduleReminderTimer();
+
+    return { ok: true };
+  });
+  ipcMain.handle('desktop:minimize-main-window', (event) => {
+    const win = getMainWindowFromEvent(event);
+
+    if (win && !win.isDestroyed()) {
+      win.minimize();
+    }
+
+    return { ok: true };
+  });
+  ipcMain.handle('desktop:toggle-maximize-main-window', (event) => {
+    const win = getMainWindowFromEvent(event);
+
+    if (!win || win.isDestroyed()) {
+      return { ok: true, isMaximized: false };
+    }
+
+    if (win.isMaximized()) {
+      win.unmaximize();
+    } else {
+      win.maximize();
+    }
+
+    return { ok: true, isMaximized: win.isMaximized() };
+  });
+  ipcMain.handle('desktop:close-main-window', (event) => {
+    const win = getMainWindowFromEvent(event);
+
+    if (win && !win.isDestroyed()) {
+      win.close();
+    }
 
     return { ok: true };
   });

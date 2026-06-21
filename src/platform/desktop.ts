@@ -1,4 +1,4 @@
-const webFallback: JflowDesktopApi = {
+const webFallback: TodaysFlowerDesktopApi = {
   isElectron: false,
   platform: 'web',
   versions: {
@@ -38,6 +38,22 @@ const webFallback: JflowDesktopApi = {
       ok: true as const,
     };
   },
+  async minimizeMainWindow() {
+    return {
+      ok: true as const,
+    };
+  },
+  async toggleMaximizeMainWindow() {
+    return {
+      ok: true as const,
+      isMaximized: false,
+    };
+  },
+  async closeMainWindow() {
+    return {
+      ok: true as const,
+    };
+  },
   async closeReminderWindow() {
     return {
       ok: true as const,
@@ -57,6 +73,8 @@ const webFallback: JflowDesktopApi = {
 };
 
 export const desktopBridge =
-  typeof window !== 'undefined' && window.jflowDesktop ? window.jflowDesktop : webFallback;
+  typeof window !== 'undefined'
+    ? (window.todaysFlowerDesktop ?? window.jflowDesktop ?? webFallback)
+    : webFallback;
 
 export const isDesktopRuntime = () => desktopBridge.isElectron;

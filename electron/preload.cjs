@@ -27,6 +27,15 @@ const desktopApi = {
   async updateReminderState(payload) {
     return ipcRenderer.invoke('desktop:update-reminder-state', payload);
   },
+  async minimizeMainWindow() {
+    return ipcRenderer.invoke('desktop:minimize-main-window');
+  },
+  async toggleMaximizeMainWindow() {
+    return ipcRenderer.invoke('desktop:toggle-maximize-main-window');
+  },
+  async closeMainWindow() {
+    return ipcRenderer.invoke('desktop:close-main-window');
+  },
   async closeReminderWindow() {
     return ipcRenderer.invoke('desktop:close-reminder-window');
   },
@@ -65,4 +74,5 @@ const desktopApi = {
   },
 };
 
+contextBridge.exposeInMainWorld('todaysFlowerDesktop', desktopApi);
 contextBridge.exposeInMainWorld('jflowDesktop', desktopApi);
