@@ -1,5 +1,5 @@
 ﻿<div align="center">
-  <img src="build/icon.png" width="120" alt="Today's Flower Logo" />
+  <img src="assets/icon.png" width="120" alt="Today's Flower Logo" />
   <h1>Today's Flower</h1>
   <p>A garden-style desktop todo app with a softer sense of order.</p>
 </div>
