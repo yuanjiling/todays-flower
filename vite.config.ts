@@ -4,8 +4,9 @@ import path from 'path';
 import {defineConfig} from 'vite';
 
 export default defineConfig(() => {
+  const isGitHubPages = process.env.GITHUB_PAGES === 'true';
   return {
-    base: './',
+    base: isGitHubPages ? '/todays-flower/' : '/',
     plugins: [react(), tailwindcss()],
     build: {
       rollupOptions: {
