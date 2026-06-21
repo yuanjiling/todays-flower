@@ -41,6 +41,12 @@ interface Item {
   order?: number;
 }
 
+const STEP_BULLET_PREFIX_RE = /^[-*+•]\s+/;
+
+const parseStepTitle = (line: string) => {
+  return line.replace(STEP_BULLET_PREFIX_RE, '').trim();
+};
+
 const STORAGE_KEYS = {
   items: 'todays-flower_items_v7',
   maxCompletedFlowers: 'todays-flower_max_completed_flowers',
@@ -1258,7 +1264,7 @@ export default function App() {
     const mainTitle = lines.length > 0 ? lines[0] : '';
     const parsedSteps = lines.slice(1).map((line, idx) => ({
       id: Math.random().toString(36).substring(2, 9) + idx,
-      title: line.replace(/^[-\d.]+\s*/, ''),
+      title: parseStepTitle(line),
       completed: false
     }));
 

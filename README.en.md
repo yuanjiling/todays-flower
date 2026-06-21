@@ -14,6 +14,8 @@
 
 Write down today's tasks and let them grow and bloom in the garden. At the end, you will see a garden that belongs to today.
 
+![Today's Flower app screenshot](docs/screenshot-main.png)
+
 ## Origin / Credits
 
 **Today's Flower** is rebuilt from the core framework of [J-Flow](https://github.com/eglantine-shell/J-Flow), with the experience redesigned around personal use.

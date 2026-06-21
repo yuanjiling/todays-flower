@@ -14,6 +14,8 @@
 
 写下今天的任务，让它们在花园中生长、开放。最后，你会看见一座属于今天的花园。
 
+![Today's Flower 应用截图](docs/screenshot-main.png)
+
 ## 来源 / 致谢
 
 **Today’s Flower** 基于 [J-Flow](https://github.com/eglantine-shell/J-Flow) 的核心框架重构而来，并围绕个人使用习惯进行了重新设计。

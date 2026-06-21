@@ -1,7 +1,7 @@
 {
   "name": "todays-flower",
   "private": true,
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Desktop-first personal todo app for Today's Flower.",
   "author": "SS S",
   "type": "module",
@@ -48,7 +48,7 @@
   },
   "build": {
     "appId": "com.aia.todaysflower",
-    "artifactName": "${productName}-${version}-${arch}.${ext}",
+    "artifactName": "Todays-Flower-${version}-${arch}.${ext}",
     "productName": "Today's Flower",
     "directories": {
       "output": "release"
