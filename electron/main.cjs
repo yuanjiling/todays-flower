@@ -162,7 +162,7 @@ function updateTrayMenu() {
     },
     { type: 'separator' },
     {
-      label: 'Quit',
+      label: t('Quit', '退出程序'),
       click: () => {
         isQuitting = true;
         app.quit();
