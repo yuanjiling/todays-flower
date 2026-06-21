@@ -103,9 +103,10 @@ const noDragRegionStyle = { WebkitAppRegion: 'no-drag' } as React.CSSProperties;
 type TitleBarProps = {
   onOpenSettings: () => void;
   t: (en: string, zh: string) => string;
+  isDarkBg: boolean;
 };
 
-const TitleBar = ({ onOpenSettings, t }: TitleBarProps) => {
+const TitleBar = ({ onOpenSettings, t, isDarkBg }: TitleBarProps) => {
   const [timeStr, setTimeStr] = useState('');
 
   useEffect(() => {
@@ -140,7 +141,7 @@ const TitleBar = ({ onOpenSettings, t }: TitleBarProps) => {
       style={dragRegionStyle}
       onDoubleClick={handleToggleMaximize}
     >
-      <div className="text-[13px] font-medium text-neutral-500/80 pointer-events-none select-none tracking-wide">
+      <div className={`text-[13px] font-medium pointer-events-none select-none tracking-wide ${isDarkBg ? 'text-white/60' : 'text-neutral-500/80'}`}>
         {timeStr}
       </div>
 
@@ -151,7 +152,7 @@ const TitleBar = ({ onOpenSettings, t }: TitleBarProps) => {
       >
         <button
           onClick={onOpenSettings}
-          className="w-[26px] h-[26px] flex items-center justify-center rounded-full hover:bg-black/5 text-neutral-400 hover:text-neutral-600 transition-colors cursor-pointer"
+          className={`w-[26px] h-[26px] flex items-center justify-center rounded-full transition-colors cursor-pointer ${isDarkBg ? 'hover:bg-white/10 text-white/50 hover:text-white' : 'hover:bg-black/5 text-neutral-400 hover:text-neutral-600'}`}
           title={t('Settings', '设置')}
           aria-label={t('Settings', '设置')}
         >
@@ -159,7 +160,7 @@ const TitleBar = ({ onOpenSettings, t }: TitleBarProps) => {
         </button>
         <button
           onClick={handleMinimize}
-          className="w-[26px] h-[26px] flex items-center justify-center rounded-full hover:bg-black/5 text-neutral-400 hover:text-neutral-600 transition-colors cursor-pointer"
+          className={`w-[26px] h-[26px] flex items-center justify-center rounded-full transition-colors cursor-pointer ${isDarkBg ? 'hover:bg-white/10 text-white/50 hover:text-white' : 'hover:bg-black/5 text-neutral-400 hover:text-neutral-600'}`}
           title={t('Minimize', '最小化')}
           aria-label={t('Minimize', '最小化')}
         >
@@ -167,7 +168,7 @@ const TitleBar = ({ onOpenSettings, t }: TitleBarProps) => {
         </button>
         <button
           onClick={handleToggleMaximize}
-          className="w-[26px] h-[26px] flex items-center justify-center rounded-full hover:bg-black/5 text-neutral-400 hover:text-neutral-600 transition-colors cursor-pointer"
+          className={`w-[26px] h-[26px] flex items-center justify-center rounded-full transition-colors cursor-pointer ${isDarkBg ? 'hover:bg-white/10 text-white/50 hover:text-white' : 'hover:bg-black/5 text-neutral-400 hover:text-neutral-600'}`}
           title={t('Maximize', '最大化')}
           aria-label={t('Maximize', '最大化')}
         >
@@ -175,7 +176,7 @@ const TitleBar = ({ onOpenSettings, t }: TitleBarProps) => {
         </button>
         <button
           onClick={handleClose}
-          className="w-[26px] h-[26px] flex items-center justify-center rounded-full hover:bg-red-500 hover:text-white text-neutral-400 transition-colors cursor-pointer ml-1"
+          className={`w-[26px] h-[26px] flex items-center justify-center rounded-full hover:bg-red-500 hover:text-white transition-colors cursor-pointer ml-1 ${isDarkBg ? 'text-white/50' : 'text-neutral-400'}`}
           title={t('Close', '关闭')}
           aria-label={t('Close', '关闭')}
         >
@@ -333,6 +334,23 @@ const getValidPosition = (existingPos: {x: number, y: number}[]) => {
     attempts++;
   }
   return { x, y };
+};
+
+const getLuminance = (hex: string) => {
+  if (!hex) return 255;
+  const c = hex.replace('#', '');
+  if (c.length !== 6 && c.length !== 3) return 255;
+  let r = 255, g = 255, b = 255;
+  if (c.length === 3) {
+    r = parseInt(c[0] + c[0], 16);
+    g = parseInt(c[1] + c[1], 16);
+    b = parseInt(c[2] + c[2], 16);
+  } else {
+    r = parseInt(c.substring(0, 2), 16);
+    g = parseInt(c.substring(2, 4), 16);
+    b = parseInt(c.substring(4, 6), 16);
+  }
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 };
 
 const ALL_FLOWERS: Record<string, { 
@@ -2038,11 +2056,15 @@ const GardenFlower = ({ itemId, flowerId, type, level, completed, isHovered }: {
 const YearMonthPicker = ({ 
   currentDate, 
   onApply,
-  t
+  t,
+  isDarkBg,
+  isSettingsOpen
 }: { 
   currentDate: Date, 
   onApply: (y: number, m: number) => void,
-  t: (en: string, zh: string) => string
+  t: (en: string, zh: string) => string,
+  isDarkBg?: boolean,
+  isSettingsOpen?: boolean
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [y, setY] = useState(currentDate.getFullYear());
@@ -2074,10 +2096,10 @@ const YearMonthPicker = ({
   }, [isOpen, currentDate]);
 
   return (
-    <div className="absolute top-6 left-1/2 -translate-x-1/2 z-[10000] pointer-events-auto flex flex-col items-center" style={noDragRegionStyle}>
+    <div className={`absolute top-6 left-1/2 -translate-x-1/2 pointer-events-auto flex flex-col items-center ${isSettingsOpen ? 'z-10' : 'z-[10000]'}`} style={noDragRegionStyle}>
        <button 
          onClick={() => setIsOpen(!isOpen)}
-         className="text-[14px] font-serif tracking-[0.1em] text-neutral-500 hover:text-neutral-900 transition-colors"
+         className={`text-[14px] font-serif tracking-[0.1em] transition-colors ${isDarkBg ? 'text-white/60 hover:text-white' : 'text-neutral-500 hover:text-neutral-900'}`}
        >
          {t(`${currentDate.toLocaleString('en-US', { month: 'long' })} ${currentDate.getFullYear()}`, `${currentDate.getFullYear()}年 ${currentDate.getMonth() + 1}月`)}
        </button>
@@ -2086,14 +2108,14 @@ const YearMonthPicker = ({
        {isOpen && (
          <motion.div 
            initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
-           className="absolute top-full left-1/2 -translate-x-1/2 mt-3 bg-white/95 backdrop-blur-md shadow-[0_8px_40px_rgba(0,0,0,0.08)] rounded-xl flex flex-col w-[240px] overflow-hidden"
+           className={`absolute top-full left-1/2 -translate-x-1/2 mt-3 backdrop-blur-md shadow-[0_8px_40px_rgba(0,0,0,0.08)] rounded-xl flex flex-col w-[240px] overflow-hidden ${isDarkBg ? 'bg-white/10' : 'bg-white/95'}`}
          >
             <div className="flex justify-between h-48">
-               <div ref={yearContainerRef} className="flex-1 overflow-y-auto hide-scrollbar text-center border-r border-neutral-100 py-2 scroll-smooth">
+               <div ref={yearContainerRef} className={`flex-1 overflow-y-auto hide-scrollbar text-center border-r py-2 scroll-smooth ${isDarkBg ? 'border-white/10' : 'border-neutral-100'}`}>
                  {years.map(year => (
                     <div 
                       key={year} onClick={() => setY(year)}
-                      className={`h-10 flex items-center justify-center cursor-pointer transition-colors text-xs font-serif ${y === year ? 'bg-neutral-900 text-white font-medium shadow-sm rounded-md mx-2' : 'hover:bg-neutral-100 text-neutral-600 mx-2 rounded-md'}`}
+                      className={`h-10 flex items-center justify-center cursor-pointer transition-colors text-xs font-serif ${y === year ? (isDarkBg ? 'bg-white text-black font-medium shadow-sm rounded-md mx-2' : 'bg-neutral-900 text-white font-medium shadow-sm rounded-md mx-2') : (isDarkBg ? 'hover:bg-white/20 text-white/90 mx-2 rounded-md' : 'hover:bg-neutral-100 text-neutral-600 mx-2 rounded-md')}`}
                     >
                        {year}
                     </div>
@@ -2103,7 +2125,7 @@ const YearMonthPicker = ({
                  {months.map(month => (
                     <div 
                       key={month} onClick={() => setM(month)}
-                      className={`h-10 flex items-center justify-center cursor-pointer transition-colors text-xs font-serif tracking-widest ${m === month ? 'bg-neutral-900 text-white font-medium shadow-sm rounded-md mx-2' : 'hover:bg-neutral-100 text-neutral-600 mx-2 rounded-md'}`}
+                      className={`h-10 flex items-center justify-center cursor-pointer transition-colors text-xs font-serif tracking-widest ${m === month ? (isDarkBg ? 'bg-white text-black font-medium shadow-sm rounded-md mx-2' : 'bg-neutral-900 text-white font-medium shadow-sm rounded-md mx-2') : (isDarkBg ? 'hover:bg-white/20 text-white/90 mx-2 rounded-md' : 'hover:bg-neutral-100 text-neutral-600 mx-2 rounded-md')}`}
                     >
                        {String(month + 1).padStart(2, '0')}
                     </div>
@@ -2112,7 +2134,7 @@ const YearMonthPicker = ({
             </div>
             <button 
               onClick={() => { onApply(y, m); setIsOpen(false); }}
-              className="w-full py-4 border-t border-neutral-200 bg-white hover:bg-neutral-50 text-neutral-900 text-[10px] uppercase tracking-[0.2em] font-bold transition-colors"
+              className={`w-full py-4 border-t text-[10px] uppercase tracking-[0.2em] font-bold transition-colors ${isDarkBg ? 'border-white/20 bg-white/10 hover:bg-white/20 text-white' : 'border-neutral-200 bg-white hover:bg-neutral-50 text-neutral-900'}`}
             >
               Apply
             </button>
@@ -2129,14 +2151,16 @@ const HorizontalCalendar = ({
   onSelectDate,
   t,
   setIsFlowerSelectorOpen,
-  setIsWishlistModalOpen
+  setIsWishlistModalOpen,
+  isDarkBg
 }: { 
   selectedDate: Date, 
   activeTab: string,
   onSelectDate: (d: Date) => void,
   t: (en: string, zh: string) => string,
   setIsFlowerSelectorOpen: React.Dispatch<React.SetStateAction<boolean>>,
-  setIsWishlistModalOpen: React.Dispatch<React.SetStateAction<boolean>>
+  setIsWishlistModalOpen: React.Dispatch<React.SetStateAction<boolean>>,
+  isDarkBg: boolean
 }) => {
   const [anchorDate, setAnchorDate] = useState(selectedDate);
   const [slideDirection, setSlideDirection] = useState<'left'|'right'|'none'>('none');
@@ -2233,7 +2257,7 @@ const HorizontalCalendar = ({
                     exit={{ opacity: 0, x: slideDirection === 'left' ? -40 : (slideDirection === 'right' ? 40 : 0) }}
                     transition={{ duration: 0.4, ease: "easeOut" }}
                     onClick={() => onSelectDate(d)}
-                    className={`cursor-pointer font-serif text-[18px] transition-colors duration-300 shrink-0 ${isHovered ? 'text-neutral-500 hover:text-neutral-900' : 'text-neutral-400 opacity-40 hover:opacity-100'}`}
+                    className={`cursor-pointer font-serif text-[18px] transition-colors duration-300 shrink-0 ${isHovered ? (isDarkBg ? 'text-white/60 hover:text-white' : 'text-neutral-500 hover:text-neutral-900') : (isDarkBg ? 'text-white/40 opacity-40 hover:opacity-100' : 'text-neutral-400 opacity-40 hover:opacity-100')}`}
                   >
                     {d.getDate()}
                   </motion.div>
@@ -2242,7 +2266,7 @@ const HorizontalCalendar = ({
         </div>
 
         <div className="flex flex-col items-center justify-center w-[280px] md:w-[400px] shrink-0 pointer-events-none relative h-full">
-            <h1 className="font-serif text-[36px] md:text-[54px] leading-tight text-neutral-900 tracking-tight mt-1 flex items-baseline justify-center whitespace-nowrap overflow-visible pointer-events-auto" style={{ textShadow: '0 4px 20px rgba(249, 248, 246, 0.8)' }}>
+            <h1 className={`font-serif text-[36px] md:text-[54px] leading-tight ${isDarkBg ? 'text-white' : 'text-neutral-900'} tracking-tight mt-1 flex items-baseline justify-center whitespace-nowrap overflow-visible pointer-events-auto`} style={{ textShadow: isDarkBg ? 'none' : '0 4px 20px rgba(249, 248, 246, 0.8)' }}>
                <AnimatePresence mode="wait">
                   <motion.div
                     key={activeTab}
@@ -2257,7 +2281,7 @@ const HorizontalCalendar = ({
                          onClick={() => setIsFlowerSelectorOpen(true)}
                          initial="initial"
                          whileHover="hover"
-                         className="pl-6 md:pl-8 flex items-baseline cursor-pointer hover:text-black hover:drop-shadow-[0_0_15px_rgba(0,0,0,0.15)] transition-colors duration-300 pointer-events-auto"
+                         className={`pl-6 md:pl-8 flex items-baseline cursor-pointer transition-colors duration-300 pointer-events-auto ${isDarkBg ? 'hover:text-white/80' : 'hover:text-black hover:drop-shadow-[0_0_15px_rgba(0,0,0,0.15)]'}`}
                        >
                          {"Today's Flow".split("").map((char, index) => (
                              <motion.span
@@ -2276,7 +2300,7 @@ const HorizontalCalendar = ({
                              </motion.span>
                          ))}
                          <motion.span 
-                            className="font-light italic text-[24px] md:text-[36px] text-neutral-400 ml-[2px] inline-block"
+                            className={`font-light italic text-[24px] md:text-[36px] ml-[2px] inline-block ${isDarkBg ? 'text-white/40' : 'text-neutral-400'}`}
                             variants={{
                                 initial: { y: 0, scale: 1 },
                                 hover: {
@@ -2294,7 +2318,7 @@ const HorizontalCalendar = ({
                          onClick={() => setIsWishlistModalOpen(true)}
                          initial="initial"
                          whileHover="hover"
-                         className="pl-4 md:pl-6 flex items-baseline cursor-pointer hover:text-black hover:drop-shadow-[0_0_15px_rgba(0,0,0,0.15)] transition-colors duration-300 pointer-events-auto"
+                         className={`pl-4 md:pl-6 flex items-baseline cursor-pointer transition-colors duration-300 pointer-events-auto ${isDarkBg ? 'hover:text-white/80' : 'hover:text-black hover:drop-shadow-[0_0_15px_rgba(0,0,0,0.15)]'}`}
                        >
                          {"To Grow".split("").map((char, index) => (
                              <motion.span
@@ -2326,7 +2350,7 @@ const HorizontalCalendar = ({
                        animate={{ opacity: 1, x: 0 }}
                        exit={{ opacity: 0, x: slideDirection === 'left' ? -40 : (slideDirection === 'right' ? 40 : 0) }}
                        transition={{ duration: 0.4, ease: "easeOut" }}
-                       className="absolute font-serif text-[24px] md:text-[28px] text-neutral-900 leading-none"
+                       className={`absolute font-serif text-[24px] md:text-[28px] leading-none ${isDarkBg ? 'text-white' : 'text-neutral-900'}`}
                     >
                        {selectedDate.getDate()}
                     </motion.div>
@@ -2336,7 +2360,7 @@ const HorizontalCalendar = ({
                {dateToYMD(selectedDate) !== dateToYMD(new Date()) && (
                   <button 
                     onClick={(e) => { e.stopPropagation(); onSelectDate(new Date()); }}
-                    className="absolute top-full mt-2 text-[10px] tracking-widest font-sans uppercase text-neutral-500 hover:text-neutral-900 pointer-events-auto transition-colors whitespace-nowrap"
+                    className={`absolute top-full mt-2 text-[10px] tracking-widest font-sans uppercase pointer-events-auto transition-colors whitespace-nowrap ${isDarkBg ? 'text-white/50 hover:text-white' : 'text-neutral-500 hover:text-neutral-900'}`}
                   >
                     {t('Return to Today', '返回今日')}
                   </button>
@@ -2355,7 +2379,7 @@ const HorizontalCalendar = ({
                     exit={{ opacity: 0, x: slideDirection === 'left' ? -40 : (slideDirection === 'right' ? 40 : 0) }}
                     transition={{ duration: 0.4, ease: "easeOut" }}
                     onClick={() => onSelectDate(d)}
-                    className={`cursor-pointer font-serif text-[18px] transition-colors duration-300 shrink-0 ${isHovered ? 'text-neutral-500 hover:text-neutral-900' : 'text-neutral-400 opacity-40 hover:opacity-100'}`}
+                    className={`cursor-pointer font-serif text-[18px] transition-colors duration-300 shrink-0 ${isHovered ? (isDarkBg ? 'text-white/60 hover:text-white' : 'text-neutral-500 hover:text-neutral-900') : (isDarkBg ? 'text-white/40 opacity-40 hover:opacity-100' : 'text-neutral-400 opacity-40 hover:opacity-100')}`}
                   >
                     {d.getDate()}
                   </motion.div>
@@ -2696,6 +2720,7 @@ export default function App() {
   const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
   const [visibleGuides, setVisibleGuides] = useState<string[]>([]);
   const [bgColor, setBgColor] = useState('#F9F8F6');
+  const isDarkBg = getLuminance(bgColor) < 128;
   const [weather, setWeather] = useState<'sunny' | 'rainy' | 'snowy'>('sunny');
   const [language, setLanguage] = useState<'en' | 'zh'>('en');
   const [maxCompletedFlowers, setMaxCompletedFlowers] = useState(10);
@@ -3265,9 +3290,10 @@ export default function App() {
       style={{ backgroundColor: bgColor }}
       onClick={() => inputRef.current?.blur()}
     >
-      <TitleBar t={t} onOpenSettings={() => setIsSettingsOpen(true)} />
+      <TitleBar t={t} onOpenSettings={() => setIsSettingsOpen(true)} isDarkBg={isDarkBg} />
       <WeatherOverlay weather={weather} />
       <YearMonthPicker 
+        isSettingsOpen={isSettingsOpen}
         t={t}
         currentDate={selectedDate} 
         onApply={(y, m) => {
@@ -3277,6 +3303,7 @@ export default function App() {
            setSelectedDate(nextD);
            setAnchorDate(nextD);
         }} 
+        isDarkBg={isDarkBg}
       />
 
       <HorizontalCalendar 
@@ -3288,6 +3315,7 @@ export default function App() {
         onSelectDate={(d) => {
            setSelectedDate(d);
         }} 
+        isDarkBg={isDarkBg}
       />
 
       <GuideBubble
@@ -3347,22 +3375,22 @@ export default function App() {
         }
       />
       {/* Nav */}
-      <div className="absolute bottom-12 left-6 md:left-14 flex flex-col gap-6 text-[10px] md:text-[11px] uppercase tracking-[0.2em] font-medium text-neutral-400 z-40 mix-blend-multiply">
+      <div className={`absolute bottom-12 left-6 md:left-14 flex flex-col gap-6 text-[10px] md:text-[11px] uppercase tracking-[0.2em] font-medium z-40 ${isDarkBg ? 'text-white/60' : 'text-neutral-400 mix-blend-multiply'}`}>
         <button 
           onClick={() => { setActiveTab('todo'); setIsWishlistModalOpen(false); }} 
-          className={`text-left transition-all duration-500 origin-left ${activeTab === 'todo' && !isWishlistModalOpen ? 'text-neutral-900 scale-100 opacity-100' : 'hover:text-neutral-600 scale-90 opacity-60'}`}
+          className={`text-left transition-all duration-500 origin-left ${activeTab === 'todo' && !isWishlistModalOpen ? (isDarkBg ? 'text-white scale-100 opacity-100' : 'text-neutral-900 scale-100 opacity-100') : (isDarkBg ? 'hover:text-white/90 scale-90 opacity-60' : 'hover:text-neutral-600 scale-90 opacity-60')}`}
         >
           {t('Daily Tasks', '今日任务')}
         </button>
         <button 
           onClick={() => { setActiveTab('grass'); setIsWishlistModalOpen(false); }} 
-          className={`text-left transition-all duration-500 origin-left ${activeTab === 'grass' && !isWishlistModalOpen ? 'text-neutral-900 scale-100 opacity-100' : 'hover:text-neutral-600 scale-90 opacity-60'}`}
+          className={`text-left transition-all duration-500 origin-left ${activeTab === 'grass' && !isWishlistModalOpen ? (isDarkBg ? 'text-white scale-100 opacity-100' : 'text-neutral-900 scale-100 opacity-100') : (isDarkBg ? 'hover:text-white/90 scale-90 opacity-60' : 'hover:text-neutral-600 scale-90 opacity-60')}`}
         >
           {t('Wishlist Garden', '种草花园')}
         </button>
         <button 
           onClick={() => setIsSettingsOpen(true)} 
-          className={`text-left transition-all duration-500 origin-left hover:text-neutral-600 scale-90 opacity-60`}
+          className={`text-left transition-all duration-500 origin-left scale-90 opacity-60 ${isDarkBg ? 'hover:text-white/90' : 'hover:text-neutral-600'}`}
           title={t('Settings', '设置')}
         >
           {t('Settings', '设置')}
@@ -3452,14 +3480,18 @@ export default function App() {
                     <div className="absolute inset-0 -m-4 bg-transparent -z-10" />
                     <p 
                       onClick={(e) => handleItemClick(item.id, e)}
-                      className={`font-serif ${levelValue === 3 ? 'text-[14px] md:text-[15px]' : levelValue === 1 ? 'text-[10px] md:text-[11px]' : 'text-[11px] md:text-[12px]'} whitespace-pre-wrap transition-all duration-300 px-4 py-1.5 cursor-pointer ${hoveredItemId === item.id && !item.completed ? 'bg-neutral-900 text-white shadow-xl font-medium rounded-full' : (item.completed ? 'bg-[#F9F8F6] text-neutral-300 rounded-full' : 'bg-[#F9F8F6] text-neutral-600 rounded-full')}`}
+                      className={`font-serif ${levelValue === 3 ? 'text-[14px] md:text-[15px]' : levelValue === 1 ? 'text-[10px] md:text-[11px]' : 'text-[11px] md:text-[12px]'} whitespace-pre-wrap transition-all duration-300 px-4 py-1.5 cursor-pointer rounded-full ${hoveredItemId === item.id && !item.completed ? (isDarkBg ? 'bg-white text-neutral-900 shadow-xl font-medium' : 'bg-neutral-900 text-white shadow-xl font-medium') : (item.completed ? (isDarkBg ? 'text-white/40' : 'text-neutral-300') : (isDarkBg ? 'text-white/80' : 'text-neutral-600'))}`}
+                      style={{ backgroundColor: hoveredItemId === item.id && !item.completed ? undefined : bgColor }}
                     >
                       {item.title}
                     </p>
                     
                     {!item.completed && (
                       <>
-                        <div className={`flex flex-wrap gap-2 justify-center mt-2 px-3 py-1 text-[8px] uppercase tracking-[0.2em] font-medium transition-all duration-300 ${hoveredItemId === item.id ? 'bg-white/90 backdrop-blur-sm text-neutral-500 shadow-sm border border-neutral-200/50 rounded-full' : 'bg-[#F9F8F6] text-neutral-400 rounded-full'}`}>
+                        <div 
+                          className={`flex flex-wrap gap-2 justify-center mt-2 px-3 py-1 text-[8px] uppercase tracking-[0.2em] font-medium transition-all duration-300 rounded-full ${hoveredItemId === item.id ? (isDarkBg ? 'bg-white/10 backdrop-blur-sm text-white/80 shadow-sm border border-white/20' : 'bg-white/90 backdrop-blur-sm text-neutral-500 shadow-sm border border-neutral-200/50') : (isDarkBg ? 'text-white/50' : 'text-neutral-400')}`}
+                          style={{ backgroundColor: hoveredItemId === item.id ? undefined : bgColor }}
+                        >
                           {item.type === 'todo' ? (
                             <>
                               {item.showUntilDays > 0 && (() => {
@@ -3567,12 +3599,12 @@ export default function App() {
       >
         <AnimatePresence>
           {isFocused && (
-            <motion.div 
+              <motion.div 
               initial={{ opacity: 0, y: 15, filter: 'blur(4px)' }}
               animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
               exit={{ opacity: 0, y: 10, filter: 'blur(4px)' }}
               transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-              className="absolute bottom-full mb-6 left-1/2 -translate-x-1/2 w-max max-w-[90vw] flex flex-wrap justify-center gap-x-10 gap-y-5 text-[9px] uppercase font-medium tracking-[0.2em] text-neutral-500 px-8 py-6 bg-white/40 backdrop-blur-3xl rounded-[2rem] border border-white/60 shadow-[0_8px_32px_rgba(0,0,0,0.06)]"
+              className={`absolute bottom-full mb-6 left-1/2 -translate-x-1/2 w-max max-w-[90vw] flex flex-wrap justify-center gap-x-10 gap-y-5 text-[9px] uppercase font-medium tracking-[0.2em] px-8 py-6 backdrop-blur-3xl rounded-[2rem] shadow-[0_8px_32px_rgba(0,0,0,0.06)] bg-white/40 border border-white/60 ${isDarkBg ? 'text-white/90' : 'text-neutral-500'}`}
             >
               {activeTab === 'todo' && (
                 <>
@@ -3582,7 +3614,7 @@ export default function App() {
                       {[1, 2, 3].map(v => (
                         <button 
                           key={v} type="button" onClick={() => setImportance(v)}
-                          className={`w-4 h-4 rounded-full border transition-all duration-300 ${importance >= v ? 'bg-neutral-800 border-neutral-800 scale-110' : 'bg-transparent border-neutral-300 hover:border-neutral-400'}`} 
+                          className={`w-4 h-4 rounded-full border transition-all duration-300 ${importance >= v ? (isDarkBg ? 'bg-white border-white scale-110' : 'bg-neutral-800 border-neutral-800 scale-110') : (isDarkBg ? 'bg-transparent border-white/30 hover:border-white/60' : 'bg-transparent border-neutral-300 hover:border-neutral-400')}`} 
                         />
                       ))}
                     </div>
@@ -3594,7 +3626,7 @@ export default function App() {
                       {[{ l: '0d', v: 0 }, { l: '1d', v: 1 }, { l: '3d', v: 3 }, { l: '7d', v: 7 }].map(({l, v}) => (
                         <button 
                           key={v} type="button" onClick={() => { setShowUntilDays(v); setIsCustomDateOpen(false); }}
-                          className={`transition-all duration-300 pb-1 border-b ${showUntilDays === v && !isCustomDateOpen ? 'text-neutral-900 border-neutral-900' : 'hover:text-neutral-600 border-transparent'}`}
+                          className={`transition-all duration-300 pb-1 border-b ${showUntilDays === v && !isCustomDateOpen ? (isDarkBg ? 'text-white border-white' : 'text-neutral-900 border-neutral-900') : (isDarkBg ? 'hover:text-white/80 border-transparent text-white/50' : 'hover:text-neutral-600 border-transparent')}`}
                         >
                           {l}
                         </button>
@@ -3602,20 +3634,20 @@ export default function App() {
                       {!isCustomDateOpen ? (
                         <button 
                           type="button" onClick={() => setIsCustomDateOpen(true)}
-                          className="transition-all duration-300 pb-1 border-b hover:text-neutral-600 border-transparent"
+                          className={`transition-all duration-300 pb-1 border-b border-transparent ${isDarkBg ? 'hover:text-white/80 text-white/50' : 'hover:text-neutral-600 text-neutral-500'}`}
                         >
                           {t('more', '更多')}
                         </button>
                       ) : (
-                        <div className="flex items-center border-b border-neutral-900 pb-1">
+                        <div className={`flex items-center border-b pb-1 ${isDarkBg ? 'border-white' : 'border-neutral-900'}`}>
                           <input 
                             type="number" min="0" max="365" 
                             style={{ width: `${Math.max(22, showUntilDays.toString().length * 10 + 12)}px` }}
                             value={showUntilDays} 
                             onChange={(e) => setShowUntilDays(parseInt(e.target.value) || 0)}
-                            className="bg-transparent text-center outline-none text-neutral-900 appearance-none"
+                            className={`bg-transparent text-center outline-none appearance-none ${isDarkBg ? 'text-white' : 'text-neutral-900'}`}
                           />
-                          <span className="text-neutral-900">d</span>
+                          <span className={isDarkBg ? 'text-white' : 'text-neutral-900'}>d</span>
                         </div>
                       )}
                     </div>
@@ -3626,13 +3658,13 @@ export default function App() {
                     <div className="flex gap-3">
                       <button 
                         type="button" onClick={() => setIsDaily(!isDaily)}
-                        className={`transition-all duration-300 pb-1 border-b ${isDaily ? 'text-neutral-900 border-neutral-900' : 'text-neutral-400 hover:text-neutral-600 border-transparent'}`}
+                        className={`transition-all duration-300 pb-1 border-b ${isDaily ? (isDarkBg ? 'text-white border-white' : 'text-neutral-900 border-neutral-900') : (isDarkBg ? 'text-white/50 hover:text-white/80 border-transparent' : 'text-neutral-400 hover:text-neutral-600 border-transparent')}`}
                       >
                         {t('Daily', '每日重复')}
                       </button>
                       <button 
                         type="button" onClick={() => setIsLight(!isLight)}
-                        className={`transition-all duration-300 pb-1 border-b ${isLight ? 'text-neutral-900 border-neutral-900' : 'text-neutral-400 hover:text-neutral-600 border-transparent'}`}
+                        className={`transition-all duration-300 pb-1 border-b ${isLight ? (isDarkBg ? 'text-white border-white' : 'text-neutral-900 border-neutral-900') : (isDarkBg ? 'text-white/50 hover:text-white/80 border-transparent' : 'text-neutral-400 hover:text-neutral-600 border-transparent')}`}
                       >
                         {t('Light', '轻量任务')}
                       </button>
@@ -3649,7 +3681,7 @@ export default function App() {
                       {[1, 2, 3].map(v => (
                         <button 
                           key={v} type="button" onClick={() => setInterest(v)}
-                          className={`w-3.5 h-3.5 rounded-sm transition-all duration-300 ${interest >= v ? 'bg-neutral-800 border-neutral-800 scale-110' : 'bg-transparent border border-neutral-300 hover:border-neutral-400'}`} 
+                          className={`w-3.5 h-3.5 rounded-sm transition-all duration-300 ${interest >= v ? (isDarkBg ? 'bg-white border-white scale-110' : 'bg-neutral-800 border-neutral-800 scale-110') : (isDarkBg ? 'bg-transparent border border-white/30 hover:border-white/60' : 'bg-transparent border border-neutral-300 hover:border-neutral-400')}`} 
                         />
                       ))}
                     </div>
@@ -3660,7 +3692,7 @@ export default function App() {
                       {[1, 2, 3].map(v => (
                         <button 
                           key={`speed-${v}`} type="button" onClick={() => setSpeedLevel(v)}
-                          className={`transition-all duration-300 pb-1 border-b text-[9px] whitespace-nowrap ${speedLevel === v ? 'text-neutral-900 border-neutral-900' : 'text-neutral-500 hover:text-neutral-700 border-transparent'}`} 
+                          className={`transition-all duration-300 pb-1 border-b text-[9px] whitespace-nowrap ${speedLevel === v ? (isDarkBg ? 'text-white border-white' : 'text-neutral-900 border-neutral-900') : (isDarkBg ? 'text-white/50 hover:text-white/80 border-transparent' : 'text-neutral-500 hover:text-neutral-700 border-transparent')}`} 
                         >
                           {getEstimatedTimeLabel(v)}
                         </button>
@@ -3678,7 +3710,7 @@ export default function App() {
             <button
               type="button"
               onClick={() => setIsMultiline(!isMultiline)}
-              className={`absolute left-3 top-3 md:top-4 w-8 h-8 flex items-center justify-center rounded-full transition-colors z-10 ${isMultiline ? 'bg-neutral-800 text-white' : 'bg-transparent text-neutral-400 hover:text-neutral-600 hover:bg-black/5'}`}
+              className={`absolute left-3 top-3 md:top-4 w-8 h-8 flex items-center justify-center rounded-full transition-colors z-10 ${isMultiline ? (isDarkBg ? 'bg-white text-neutral-900' : 'bg-neutral-800 text-white') : (isDarkBg ? 'bg-transparent text-white/50 hover:text-white hover:bg-white/10' : 'bg-transparent text-neutral-400 hover:text-neutral-600 hover:bg-black/5')}`}
               title={t("Break Down (Steps)", "分步拆解")}
             >
               <List size={16} strokeWidth={2} />
@@ -3710,14 +3742,14 @@ export default function App() {
             }}
             rows={isMultiline ? 4 : 1}
             placeholder={activeTab === 'todo' ? (isMultiline ? t('Main Task\n- Step 1\n- Step 2\n...', '主任务\n- 步骤 1\n- 步骤 2\n...') : 'Let your tasks flower...') : 'Let this idea take root'}
-            className={`w-full text-center bg-white/30 backdrop-blur-xl border border-white/50 shadow-[0_8px_32px_rgba(0,0,0,0.04)] rounded-3xl ${activeTab === 'todo' ? 'px-14' : 'px-8'} py-4 md:py-5 font-serif text-base md:text-lg outline-none placeholder:text-neutral-400 focus:bg-white/60 focus:border-white transition-all duration-500 font-light resize-none hide-scrollbar`}
+            className={`w-full text-center bg-white/30 backdrop-blur-xl border border-white/50 shadow-[0_8px_32px_rgba(0,0,0,0.04)] rounded-3xl ${activeTab === 'todo' ? 'px-14' : 'px-8'} py-4 md:py-5 font-serif text-base md:text-lg outline-none transition-all duration-500 font-light resize-none hide-scrollbar ${isDarkBg ? 'text-white placeholder:text-white/40 bg-white/10 border-white/20 focus:bg-white/20 focus:border-white/40' : 'text-neutral-900 placeholder:text-neutral-400 focus:bg-white/60 focus:border-white'}`}
             style={{ minHeight: isMultiline ? '120px' : '60px' }}
           />
 
           {isMultiline && (
             <button
               type="submit"
-              className="absolute right-3 top-3 md:top-4 px-4 h-8 flex items-center justify-center rounded-full bg-neutral-800 text-white transition-opacity z-10 hover:bg-neutral-900 text-xs tracking-widest uppercase font-medium"
+              className={`absolute right-3 top-3 md:top-4 px-4 h-8 flex items-center justify-center rounded-full transition-opacity z-10 text-xs tracking-widest uppercase font-medium ${isDarkBg ? 'bg-white text-neutral-900 hover:bg-white/90' : 'bg-neutral-800 text-white hover:bg-neutral-900'}`}
             >
               {t('Add', '添加')}
             </button>
