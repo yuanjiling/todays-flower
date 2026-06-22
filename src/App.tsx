@@ -54,6 +54,7 @@ const STORAGE_KEYS = {
   backgroundColor: 'todays-flower_bg_color',
   weather: 'todays-flower_weather',
   language: 'todays-flower_language',
+  languageInitialized: 'todays-flower_language_initialized',
   flowerSelection: 'todays-flower_flower_selection',
   lastVisitDate: 'todays-flower_last_visit_date',
   notificationInterval: 'todays-flower_notification_interval',
@@ -91,9 +92,44 @@ const readStoredValue = (key: string, legacyKeys: readonly string[] = []) => {
 };
 
 type DragOffset = { x: number; y: number };
+type Language = 'en' | 'zh';
 
 const dragRegionStyle = { WebkitAppRegion: 'drag' } as React.CSSProperties;
 const noDragRegionStyle = { WebkitAppRegion: 'no-drag' } as React.CSSProperties;
+
+const normalizeLanguage = (value: string | null | undefined): Language | null => {
+  if (value === 'en' || value === 'zh') {
+    return value;
+  }
+
+  return null;
+};
+
+const getSystemLanguage = (): Language => {
+  const locales = typeof navigator === 'undefined'
+    ? []
+    : [navigator.language, ...(navigator.languages ?? [])];
+
+  return locales.some((locale) => locale.toLowerCase().startsWith('zh')) ? 'zh' : 'en';
+};
+
+const getInitialLanguage = (): Language => {
+  if (typeof localStorage === 'undefined') {
+    return 'en';
+  }
+
+  const storedLanguage = normalizeLanguage(
+    readStoredValue(STORAGE_KEYS.language, LEGACY_STORAGE_KEYS.language),
+  );
+
+  if (storedLanguage) {
+    return storedLanguage;
+  }
+
+  return localStorage.getItem(STORAGE_KEYS.languageInitialized) === 'true'
+    ? 'en'
+    : getSystemLanguage();
+};
 
 type TitleBarProps = {
   onOpenSettings: () => void;
@@ -1001,7 +1037,7 @@ export default function App() {
   const [bgColor, setBgColor] = useState('#F9F8F6');
   const isDarkBg = getLuminance(bgColor) < 128;
   const [weather, setWeather] = useState<'sunny' | 'rainy'>('sunny');
-  const [language, setLanguage] = useState<'en' | 'zh'>('en');
+  const [language, setLanguage] = useState<Language>(() => getInitialLanguage());
   const [maxCompletedFlowers, setMaxCompletedFlowers] = useState(6);
   const [maxUncompletedFlowers, setMaxUncompletedFlowers] = useState(8);
   const [notificationInterval, setNotificationInterval] = useState(60);
@@ -1037,8 +1073,20 @@ export default function App() {
     if (bg) setBgColor(bg);
     const w = readStoredValue(STORAGE_KEYS.weather, LEGACY_STORAGE_KEYS.weather);
     if (w === 'rainy' || w === 'sunny') setWeather(w);
-    const l = readStoredValue(STORAGE_KEYS.language, LEGACY_STORAGE_KEYS.language);
-    if (l === 'en' || l === 'zh') setLanguage(l);
+    const storedLanguage = normalizeLanguage(
+      readStoredValue(STORAGE_KEYS.language, LEGACY_STORAGE_KEYS.language),
+    );
+    const hasInitializedLanguage = localStorage.getItem(STORAGE_KEYS.languageInitialized) === 'true';
+
+    if (storedLanguage) {
+      setLanguage(storedLanguage);
+      localStorage.setItem(STORAGE_KEYS.languageInitialized, 'true');
+    } else if (!hasInitializedLanguage) {
+      const systemLanguage = getSystemLanguage();
+      setLanguage(systemLanguage);
+      localStorage.setItem(STORAGE_KEYS.language, systemLanguage);
+      localStorage.setItem(STORAGE_KEYS.languageInitialized, 'true');
+    }
 
     const fs = readStoredValue(STORAGE_KEYS.flowerSelection, LEGACY_STORAGE_KEYS.flowerSelection);
     if (fs) {
@@ -1153,9 +1201,10 @@ export default function App() {
     localStorage.setItem(STORAGE_KEYS.weather, w);
   };
 
-  const saveLanguage = (l: 'en' | 'zh') => {
+  const saveLanguage = (l: Language) => {
     setLanguage(l);
     localStorage.setItem(STORAGE_KEYS.language, l);
+    localStorage.setItem(STORAGE_KEYS.languageInitialized, 'true');
   };
 
   const t = (en: string, zh: string) => language === 'en' ? en : zh;
