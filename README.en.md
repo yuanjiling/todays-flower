@@ -19,8 +19,8 @@ Write down today's tasks and let them grow and bloom in the garden. At the end, 
 ![Today's Flower app screenshot](docs/screenshot-main.png)
 
 <p align="center">
-  <img src="docs/screenshot-1.png" alt="Today's Flower 桌面截图" height="240" />
-  <img src="docs/screenshot-notification.png" alt="Today's Flower 提醒截图" height="240" />
+  <img src="docs/screenshot-1.png" alt="Today's Flower 桌面截图" width="48%" />
+  <img src="docs/screenshot-notification.png" alt="Today's Flower 提醒截图" width="48%" />
 </p>
 
 ## Origin / Credits
