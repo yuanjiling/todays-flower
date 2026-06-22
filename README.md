@@ -18,6 +18,11 @@
 
 ![Today's Flower 应用截图](docs/screenshot-main.png)
 
+<p align="center">
+  <img src="docs/screenshot-1.png" alt="Today's Flower 桌面截图" height="240" />
+  <img src="docs/screenshot-notification.png" alt="Today's Flower 提醒截图" height="240" />
+</p>
+
 ## 来源 / 致谢
 
 **Today’s Flower** 基于 [J-Flow](https://github.com/eglantine-shell/J-Flow) 的核心框架重构而来，并围绕个人使用习惯进行了重新设计。
@@ -78,6 +83,3 @@ npm run build:desktop  # 构建桌面应用
 ```
 
 <br />
-
-
-

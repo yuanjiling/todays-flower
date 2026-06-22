@@ -18,6 +18,11 @@ Write down today's tasks and let them grow and bloom in the garden. At the end, 
 
 ![Today's Flower app screenshot](docs/screenshot-main.png)
 
+<p align="center">
+  <img src="docs/screenshot-1.png" alt="Today's Flower 桌面截图" height="240" />
+  <img src="docs/screenshot-notification.png" alt="Today's Flower 提醒截图" height="240" />
+</p>
+
 ## Origin / Credits
 
 **Today's Flower** is rebuilt from the core framework of [J-Flow](https://github.com/eglantine-shell/J-Flow), with the experience redesigned around personal use.
@@ -78,4 +83,3 @@ npm run build:desktop  # Build the desktop app
 ```
 
 <br />
-
