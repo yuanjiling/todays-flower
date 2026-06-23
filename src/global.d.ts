@@ -29,11 +29,13 @@ declare global {
 
   type DesktopRuntimeInfo = {
     isElectron: boolean;
+    isTauri?: boolean;
     platform: string;
     versions: {
       chrome: string;
       electron: string;
       node: string;
+      tauri?: string;
     };
   };
 

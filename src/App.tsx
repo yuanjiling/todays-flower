@@ -155,15 +155,15 @@ const TitleBar = ({ onOpenSettings, t, isDarkBg }: TitleBarProps) => {
   }, []);
 
   const handleMinimize = () => {
-    void desktopBridge.minimizeMainWindow();
+    void desktopBridge.minimizeMainWindow().catch(console.error);
   };
 
   const handleToggleMaximize = () => {
-    void desktopBridge.toggleMaximizeMainWindow();
+    void desktopBridge.toggleMaximizeMainWindow().catch(console.error);
   };
 
   const handleClose = () => {
-    void desktopBridge.closeMainWindow();
+    void desktopBridge.closeMainWindow().catch(console.error);
   };
 
   return (
@@ -1122,7 +1122,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!desktopBridge.isElectron) {
+    if (!(desktopBridge.isElectron || desktopBridge.isTauri)) {
       return;
     }
 
@@ -1175,7 +1175,7 @@ export default function App() {
   };
 
   const saveLaunchAtLogin = async (enabled: boolean) => {
-    if (!desktopBridge.isElectron) {
+    if (!(desktopBridge.isElectron || desktopBridge.isTauri)) {
       return;
     }
 
@@ -1276,7 +1276,7 @@ export default function App() {
   }, [items, reminderDateKey, notificationMinImportance]);
 
   useEffect(() => {
-    if (!isLoaded || !desktopBridge.isElectron) {
+    if (!isLoaded || !(desktopBridge.isElectron || desktopBridge.isTauri)) {
       return;
     }
 
@@ -1294,7 +1294,7 @@ export default function App() {
   }, [isLoaded, language, notificationInterval, isNotificationEnabled, reminderTasks]);
 
   useEffect(() => {
-    if (!desktopBridge.isElectron) return;
+    if (!(desktopBridge.isElectron || desktopBridge.isTauri)) return;
 
     return desktopBridge.onTraySettingsChanged((payload) => {
       setIsNotificationEnabled(payload.isNotificationEnabled);
@@ -2258,7 +2258,7 @@ export default function App() {
                         type="button"
                         role="switch"
                         aria-checked={launchAtLogin}
-                        disabled={!desktopBridge.isElectron || launchAtLoginStatus === 'saving'}
+                        disabled={!(desktopBridge.isElectron || desktopBridge.isTauri) || launchAtLoginStatus === 'saving'}
                         onClick={() => {
                           void saveLaunchAtLogin(!launchAtLogin);
                         }}

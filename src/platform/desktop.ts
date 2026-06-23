@@ -1,19 +1,25 @@
+import { isTauriRuntime, tauriBridge } from './tauri.ts';
+
 const webFallback: TodaysFlowerDesktopApi = {
   isElectron: false,
+  isTauri: false,
   platform: 'web',
   versions: {
     chrome: '',
     electron: '',
     node: '',
+    tauri: '',
   },
   async getRuntimeInfo() {
     return {
       isElectron: false,
+      isTauri: false,
       platform: 'web',
       versions: {
         chrome: '',
         electron: '',
         node: '',
+        tauri: '',
       },
     };
   },
@@ -82,7 +88,9 @@ const webFallback: TodaysFlowerDesktopApi = {
 
 export const desktopBridge =
   typeof window !== 'undefined'
-    ? (window.todaysFlowerDesktop ?? window.jflowDesktop ?? webFallback)
+    ? (isTauriRuntime()
+        ? tauriBridge
+        : window.todaysFlowerDesktop ?? window.jflowDesktop ?? webFallback)
     : webFallback;
 
-export const isDesktopRuntime = () => desktopBridge.isElectron;
+export const isDesktopRuntime = () => desktopBridge.isElectron || Boolean(desktopBridge.isTauri);

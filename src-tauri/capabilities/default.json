@@ -1,0 +1,25 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Desktop capability for Today's Flower main and reminder windows.",
+  "windows": [
+    "main",
+    "reminder"
+  ],
+  "permissions": [
+    "core:default",
+    "core:app:allow-default-window-icon",
+    "autostart:default",
+    "notification:default",
+    "core:window:allow-minimize",
+    "core:window:allow-toggle-maximize",
+    "core:window:allow-is-maximized",
+    "core:window:allow-hide",
+    "core:window:allow-show",
+    "core:window:allow-destroy",
+    "core:window:allow-set-focus",
+    "core:window:allow-get-all-windows",
+    "core:window:allow-primary-monitor",
+    "core:window:allow-set-position"
+  ]
+}
