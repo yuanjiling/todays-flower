@@ -35,8 +35,8 @@
     "shortDescription": "Today's Flower",
     "longDescription": "Today's Flower desktop app.",
     "icon": [
-      "icons/icon.png",
       "icons/icon.ico",
+      "icons/icon.png",
       "icons/icon.icns"
     ],
     "windows": {
@@ -48,3 +48,4 @@
     }
   }
 }
+

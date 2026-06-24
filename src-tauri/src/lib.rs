@@ -6,6 +6,7 @@ use std::{
     },
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
+use tauri::image::Image;
 use tauri::webview::PageLoadEvent;
 use tauri::window::Color;
 use tauri::{
@@ -111,6 +112,14 @@ fn now_ms() -> u64 {
         .as_millis() as u64
 }
 
+fn taskbar_icon() -> Option<Image<'static>> {
+    Image::from_bytes(include_bytes!("../icons/icon-48.png")).ok()
+}
+
+fn tray_icon() -> Option<Image<'static>> {
+    Image::from_bytes(include_bytes!("../icons/icon-32.png")).ok()
+}
+
 fn normalize_language(value: &str) -> String {
     if value == "zh" {
         "zh".to_string()
@@ -186,14 +195,19 @@ fn create_main_window(app: &AppHandle) -> Result<WebviewWindow, String> {
         .cloned()
         .ok_or_else(|| "main window config is missing".to_string())?;
 
-    WebviewWindowBuilder::from_config(app, &config)
-        .map_err(|error| error.to_string())?
-        .build()
-        .map_err(|error| error.to_string())
+    let mut builder =
+        WebviewWindowBuilder::from_config(app, &config).map_err(|error| error.to_string())?;
+
+    if let Some(icon) = taskbar_icon() {
+        builder = builder.icon(icon).map_err(|error| error.to_string())?;
+    }
+
+    builder.build().map_err(|error| error.to_string())
 }
 
 fn focus_main_window(app: &AppHandle) -> Result<(), String> {
     let window = create_main_window(app)?;
+    let _ = window.unminimize();
     window.show().map_err(|error| error.to_string())?;
     window.set_focus().map_err(|error| error.to_string())?;
     Ok(())
@@ -340,7 +354,7 @@ fn build_tray_menu(app: &AppHandle, config: &TrayConfigPayload) -> tauri::Result
     let interval_30 = CheckMenuItem::with_id(
         app,
         "tray-interval-30",
-        t(&config.lang, "30m", "30分钟"),
+        t(&config.lang, "30 min", "30 分钟"),
         true,
         config.notification_interval == 30,
         None::<&str>,
@@ -348,7 +362,7 @@ fn build_tray_menu(app: &AppHandle, config: &TrayConfigPayload) -> tauri::Result
     let interval_60 = CheckMenuItem::with_id(
         app,
         "tray-interval-60",
-        t(&config.lang, "60m", "60分钟"),
+        t(&config.lang, "1 hour", "1 小时"),
         true,
         config.notification_interval == 60,
         None::<&str>,
@@ -356,7 +370,7 @@ fn build_tray_menu(app: &AppHandle, config: &TrayConfigPayload) -> tauri::Result
     let interval_120 = CheckMenuItem::with_id(
         app,
         "tray-interval-120",
-        t(&config.lang, "120m", "120分钟"),
+        t(&config.lang, "2 hours", "2 小时"),
         true,
         config.notification_interval == 120,
         None::<&str>,
@@ -364,11 +378,12 @@ fn build_tray_menu(app: &AppHandle, config: &TrayConfigPayload) -> tauri::Result
     let interval_180 = CheckMenuItem::with_id(
         app,
         "tray-interval-180",
-        t(&config.lang, "180m", "180分钟"),
+        t(&config.lang, "3 hours", "3 小时"),
         true,
         config.notification_interval == 180,
         None::<&str>,
     )?;
+    let separator_two = PredefinedMenuItem::separator(app)?;
     let interval_menu = Submenu::with_id_and_items(
         app,
         "tray-reminder-interval",
@@ -376,7 +391,7 @@ fn build_tray_menu(app: &AppHandle, config: &TrayConfigPayload) -> tauri::Result
         true,
         &[&interval_30, &interval_60, &interval_120, &interval_180],
     )?;
-    let separator_two = PredefinedMenuItem::separator(app)?;
+    let separator_three = PredefinedMenuItem::separator(app)?;
     let quit = MenuItem::with_id(
         app,
         "tray-quit",
@@ -391,8 +406,9 @@ fn build_tray_menu(app: &AppHandle, config: &TrayConfigPayload) -> tauri::Result
             &enter,
             &separator_one,
             &reminders,
-            &interval_menu,
             &separator_two,
+            &interval_menu,
+            &separator_three,
             &quit,
         ],
     )
@@ -456,7 +472,7 @@ fn create_tray(app: &AppHandle, state: SharedDesktopState) -> Result<(), String>
 
     let config = state.tray_config.lock().unwrap().clone();
     let menu = build_tray_menu(app, &config).map_err(|error| error.to_string())?;
-    let icon = app.default_window_icon().cloned();
+    let icon = tray_icon();
     let state_for_menu = state.clone();
     let state_for_tray = state.clone();
 

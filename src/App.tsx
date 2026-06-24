@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { flushSync } from 'react-dom';
 import { motion, AnimatePresence, Reorder, useMotionValue } from 'motion/react';
-import { X, Sprout, List, ArchiveRestore, Archive, Pencil, CalendarPlus, Search, GripVertical, Settings, Minus, Square } from 'lucide-react';
+import { X, Sprout, List, ArchiveRestore, Archive, Pencil, CalendarPlus, Search, GripVertical, Settings, Minus, Square, ArrowRight, Trash2 } from 'lucide-react';
 import { desktopBridge } from './platform/desktop.ts';
 import { ALL_FLOWERS, GardenFlower } from './components/GardenFlower.tsx';
 
@@ -10,6 +10,20 @@ type ItemType = 'todo' | 'grass';
 const dateToYMD = (d: Date) => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
+
+const DAY_MS = 1000 * 60 * 60 * 24;
+
+const getStartOfDay = (date: Date | number) => {
+  const nextDate = new Date(date);
+  nextDate.setHours(0, 0, 0, 0);
+  return nextDate;
+};
+
+const getDaysFromToday = (date: Date | number) => {
+  const todayStart = getStartOfDay(new Date());
+  const targetStart = getStartOfDay(date);
+  return Math.round((targetStart.getTime() - todayStart.getTime()) / DAY_MS);
+};
 
 interface Step {
   id: string;
@@ -143,7 +157,8 @@ const TitleBar = ({ onOpenSettings, t, isDarkBg }: TitleBarProps) => {
   useEffect(() => {
     const updateTime = () => {
       const now = new Date();
-      setTimeStr(now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+      const nextTime = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      setTimeStr((currentTime) => currentTime === nextTime ? currentTime : nextTime);
     };
 
     updateTime();
@@ -223,7 +238,11 @@ interface DraggableFlowerShellProps {
   item: Item;
   zIndex: number;
   onDragStart: () => void;
-  onDragMove: (target: EventTarget | null, itemId: string) => void;
+  onDragMove: (
+    event: MouseEvent | TouchEvent | PointerEvent,
+    target: EventTarget | null,
+    itemId: string,
+  ) => void;
   onDragCommit: (id: string, offset: DragOffset) => void;
   onDragRelease: () => void;
   children: React.ReactNode;
@@ -247,7 +266,7 @@ function DraggableFlowerShell({
       dragMomentum={false}
       onDragStart={onDragStart}
       onDrag={(event) => {
-        onDragMove(event.target, item.id);
+        onDragMove(event, event.target, item.id);
       }}
       onDragEnd={(_, info) => {
         if (Math.hypot(info.offset.x, info.offset.y) >= 3) {
@@ -297,71 +316,32 @@ const MinimalColorPicker = ({ color, onChange }: { color: string, onChange: (c: 
 
   return (
     <div className="flex flex-col gap-3 p-2 w-[160px]">
-      <div 
-        className="w-full h-12 rounded-[10px] border border-neutral-200/60" 
-        style={{ backgroundColor: `hsl(${h}, ${s}%, ${l}%)` }} 
+      <div
+        className="w-full h-12 rounded-[10px] border border-neutral-200/60"
+        style={{ backgroundColor: `hsl(${h}, ${s}%, ${l}%)` }}
       />
       <div className="flex flex-col gap-2.5 mt-1">
-        <input 
-          type="range" min="0" max="360" value={h} 
-          onChange={e => updateColor(Number(e.target.value), s, l)} 
-          className="w-full h-2.5 rounded-full appearance-none outline-none minimal-color-range bg-transparent" 
-          style={{ background: 'linear-gradient(to right, #f00 0%, #ff0 17%, #0f0 33%, #0ff 50%, #00f 67%, #f0f 83%, #f00 100%)' }} 
+        <input
+          type="range" min="0" max="360" value={h}
+          onChange={e => updateColor(Number(e.target.value), s, l)}
+          className="w-full h-2.5 rounded-full appearance-none outline-none minimal-color-range bg-transparent"
+          style={{ background: 'linear-gradient(to right, #f00 0%, #ff0 17%, #0f0 33%, #0ff 50%, #00f 67%, #f0f 83%, #f00 100%)' }}
         />
-        <input 
-          type="range" min="0" max="100" value={s} 
-          onChange={e => updateColor(h, Number(e.target.value), l)} 
-          className="w-full h-2.5 rounded-full appearance-none outline-none minimal-color-range bg-transparent" 
-          style={{ background: `linear-gradient(to right, hsl(${h}, 0%, ${l}%), hsl(${h}, 100%, ${l}%))` }} 
+        <input
+          type="range" min="0" max="100" value={s}
+          onChange={e => updateColor(h, Number(e.target.value), l)}
+          className="w-full h-2.5 rounded-full appearance-none outline-none minimal-color-range bg-transparent"
+          style={{ background: `linear-gradient(to right, hsl(${h}, 0%, ${l}%), hsl(${h}, 100%, ${l}%))` }}
         />
-        <input 
-          type="range" min="0" max="100" value={l} 
-          onChange={e => updateColor(h, s, Number(e.target.value))} 
-          className="w-full h-2.5 rounded-full appearance-none outline-none minimal-color-range bg-transparent" 
-          style={{ background: `linear-gradient(to right, #000, hsl(${h}, ${s}%, 50%), #fff)` }} 
+        <input
+          type="range" min="0" max="100" value={l}
+          onChange={e => updateColor(h, s, Number(e.target.value))}
+          className="w-full h-2.5 rounded-full appearance-none outline-none minimal-color-range bg-transparent"
+          style={{ background: `linear-gradient(to right, #000, hsl(${h}, ${s}%, 50%), #fff)` }}
         />
       </div>
     </div>
   );
-};
-
-const getVisibleTodoItemsForDate = (items: Item[], targetDate: Date) => {
-  const targetYMD = dateToYMD(targetDate);
-  const targetTime = new Date(`${targetYMD}T00:00:00`).getTime();
-
-  return items
-    .filter((item) => {
-      if (item.type !== 'todo') return false;
-      if (item.dateStr === targetYMD) return true;
-
-      const itemTime = new Date(`${item.dateStr}T00:00:00`).getTime();
-
-      if (item.isDaily && targetTime >= itemTime) {
-        if (item.endDate && targetYMD >= item.endDate) return false;
-        return true;
-      }
-
-      if (item.showUntilDays > 0) {
-        const expireTime = itemTime + item.showUntilDays * 24 * 60 * 60 * 1000;
-        return targetTime >= itemTime && targetTime <= expireTime;
-      }
-
-      return false;
-    })
-    .map((item) => {
-      if (!item.isDaily) {
-        return item;
-      }
-
-      return {
-        ...item,
-        completed: item.completedDates?.includes(targetYMD) || false,
-        steps: item.steps.map((step) => ({
-          ...step,
-          completed: item.stepsCompletedDates?.[step.id]?.includes(targetYMD) || false,
-        })),
-      };
-    });
 };
 
 const buildReminderTaskSummaries = (
@@ -370,23 +350,59 @@ const buildReminderTaskSummaries = (
   minImportance: number,
 ): ReminderTaskSummary[] => {
   const threshold = Math.min(3, Math.max(1, Math.floor(minImportance || 1)));
+  const targetYMD = dateToYMD(targetDate);
+  const targetTime = new Date(`${targetYMD}T00:00:00`).getTime();
+  const summaries: (ReminderTaskSummary & { sortTime: number })[] = [];
 
-  return getVisibleTodoItemsForDate(items, targetDate)
-    .filter((item) => item.importance >= threshold && item.title.trim())
+  items.forEach((item) => {
+    if (item.type !== 'todo' || item.importance < threshold) {
+      return;
+    }
+
+    const title = item.title.trim();
+
+    if (!title) {
+      return;
+    }
+
+    let isVisible = item.dateStr === targetYMD;
+
+    if (!isVisible) {
+      const itemTime = new Date(`${item.dateStr}T00:00:00`).getTime();
+
+      if (item.isDaily && targetTime >= itemTime) {
+        isVisible = !(item.endDate && targetYMD >= item.endDate);
+      } else if (item.showUntilDays > 0) {
+        const expireTime = itemTime + item.showUntilDays * 24 * 60 * 60 * 1000;
+        isVisible = targetTime >= itemTime && targetTime <= expireTime;
+      }
+    }
+
+    if (!isVisible) {
+      return;
+    }
+
+    summaries.push({
+      id: item.id,
+      title,
+      importance: item.importance,
+      flowerId: item.flowerId,
+      completed: item.isDaily
+        ? item.completedDates?.includes(targetYMD) || false
+        : !!item.completed,
+      sortTime: item.updatedAt || item.createdAt,
+    });
+  });
+
+  return summaries
     .sort((left, right) => {
       if (right.importance !== left.importance) {
         return right.importance - left.importance;
       }
 
-      return (right.updatedAt || right.createdAt) - (left.updatedAt || left.createdAt);
+      return right.sortTime - left.sortTime;
     })
-    .map((item) => ({
-      id: item.id,
-      title: item.title.trim(),
-      importance: item.importance,
-      flowerId: item.flowerId,
-      completed: !!item.completed,
-    }));
+    .map(({ sortTime, ...summary }) => summary);
 };
 
 const getValidPosition = (existingPos: {x: number, y: number}[]) => {
@@ -395,22 +411,22 @@ const getValidPosition = (existingPos: {x: number, y: number}[]) => {
   while (attempts < 200) {
     x = 10 + Math.random() * 80;
     // Generate lower in the screen: 50% to 92%
-    y = 50 + Math.random() * 42; 
+    y = 50 + Math.random() * 42;
 
-    // Title & Calendar area 
-    if (y < 42 && x > 25 && x < 75) { attempts++; continue; } 
+    // Title & Calendar area
+    if (y < 42 && x > 25 && x < 75) { attempts++; continue; }
     // Input area (push extreme bottom ones to the side to avoid the input field)
-    if (y > 84 && x > 20 && x < 80) { attempts++; continue; } 
+    if (y > 84 && x > 20 && x < 80) { attempts++; continue; }
     // Left Nav
-    if (y > 85 && x < 25) { attempts++; continue; } 
+    if (y > 85 && x < 25) { attempts++; continue; }
 
     let overlap = false;
     for (const pos of existingPos) {
        const dx = pos.x - x;
        // Weight Y more heavily? No, let's keep it similar
-       const dy = (pos.y - y) * 1.5; 
+       const dy = (pos.y - y) * 1.5;
        const dist = Math.sqrt(dx*dx + dy*dy);
-       if (dist < 20) {  
+       if (dist < 20) {
           overlap = true;
           break;
        }
@@ -456,7 +472,27 @@ const DEFAULT_FLOWER_SELECTION: Record<number, string[]> = {
 };
 
 const FLOWER_SELECTOR_DISPLAY_IDS = FLOWER_SELECTION_GROUPS.map((group) => group.displayId);
-const FLOWER_GROUP_IDS = new Set(FLOWER_SELECTION_GROUPS.flatMap((group) => group.ids));
+const TODO_TITLE_CHARS = "Today's Flow".split('');
+const GRASS_TITLE_CHARS = 'To Grow'.split('');
+const IMPORTANCE_LEVELS = [1, 2, 3] as const;
+const SHOW_UNTIL_PRESETS = [
+  { l: '0d', v: 0 },
+  { l: '1d', v: 1 },
+  { l: '3d', v: 3 },
+  { l: '7d', v: 7 },
+] as const;
+const NOTIFICATION_INTERVAL_PRESETS = [
+  { value: 30, label: '30m' },
+  { value: 60, label: '1h (60m)' },
+  { value: 120, label: '2h (120m)' },
+  { value: 180, label: '3h (180m)' },
+] as const;
+const MIN_REMINDER_OPTIONS = [1, 2, 3] as const;
+const WEATHER_OPTIONS = ['sunny', 'rainy'] as const;
+const LANGUAGE_OPTIONS = ['en', 'zh'] as const;
+const BG_COLOR_PRESETS = ['#F9F8F6', '#fad6df', '#1f3c6b'] as const;
+const BG_COLOR_PRESET_SET = new Set(BG_COLOR_PRESETS.map((preset) => preset.toLowerCase()));
+const MemoGardenFlower = React.memo(GardenFlower);
 
 const getFlowerGroupIds = (flowerId: string) => {
   const group = FLOWER_SELECTION_GROUPS.find((candidate) => (candidate.ids as readonly string[]).includes(flowerId));
@@ -470,7 +506,7 @@ const normalizeFlowerSelection = (selection?: Record<number, string[]>) => {
     3: [...DEFAULT_FLOWER_SELECTION[3]],
   };
 
-  ([1, 2, 3] as const).forEach((level) => {
+  IMPORTANCE_LEVELS.forEach((level) => {
     if (!Array.isArray(selection?.[level])) {
       return;
     }
@@ -530,7 +566,7 @@ const MiniFlower = ({ flowerId, selected }: { flowerId: string, selected: boolea
 
   const shapes = ALL_FLOWERS[flowerId];
   if (!shapes) return null;
-  
+
   if (shapes.customBlossoms && shapes.customBlossoms.length > 0) {
     const blossom = shapes.customBlossoms[0];
     return (
@@ -541,9 +577,9 @@ const MiniFlower = ({ flowerId, selected }: { flowerId: string, selected: boolea
       </svg>
     );
   }
-  
+
   const content = shapes.bloom || shapes.bud;
-  
+
   return (
     <svg width="50" height="50" viewBox="0 0 40 40" fill="none" className={`transition-colors flex-shrink-0 overflow-visible ${selected ? 'text-white' : 'text-neutral-400 opacity-50'}`}>
       <g transform="translate(20, 20) scale(1.6) translate(-30, -30)">
@@ -552,27 +588,27 @@ const MiniFlower = ({ flowerId, selected }: { flowerId: string, selected: boolea
     </svg>
   );
 };
-  
-const YearMonthPicker = ({ 
-  currentDate, 
+
+const YearMonthPicker = ({
+  currentDate,
   onApply,
   t,
   isDarkBg,
-  isSettingsOpen
-}: { 
-  currentDate: Date, 
+  isObscured
+}: {
+  currentDate: Date,
   onApply: (y: number, m: number) => void,
   t: (en: string, zh: string) => string,
   isDarkBg?: boolean,
-  isSettingsOpen?: boolean
+  isObscured?: boolean
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [y, setY] = useState(currentDate.getFullYear());
   const [m, setM] = useState(currentDate.getMonth());
-  
+
   const years = Array.from({length: 10}, (_, i) => currentDate.getFullYear() - 5 + i);
   const months = Array.from({length: 12}, (_, i) => i);
-  
+
   const yearContainerRef = useRef<HTMLDivElement>(null);
   const monthContainerRef = useRef<HTMLDivElement>(null);
 
@@ -596,24 +632,24 @@ const YearMonthPicker = ({
   }, [isOpen, currentDate]);
 
   return (
-    <div className={`absolute top-6 left-1/2 -translate-x-1/2 pointer-events-auto flex flex-col items-center ${isSettingsOpen ? 'z-10' : 'z-[10000]'}`} style={noDragRegionStyle}>
-       <button 
+    <div className={`absolute top-6 left-1/2 -translate-x-1/2 pointer-events-auto flex flex-col items-center ${isObscured ? 'z-10' : 'z-[10000]'}`} style={noDragRegionStyle}>
+       <button
          onClick={() => setIsOpen(!isOpen)}
          className={`text-[14px] font-serif tracking-[0.1em] transition-colors ${isDarkBg ? 'text-white/60 hover:text-white' : 'text-neutral-500 hover:text-neutral-900'}`}
        >
          {t(`${currentDate.toLocaleString('en-US', { month: 'long' })} ${currentDate.getFullYear()}`, `${currentDate.getFullYear()}年 ${currentDate.getMonth() + 1}月`)}
        </button>
-       
+
        <AnimatePresence>
        {isOpen && (
-         <motion.div 
+         <motion.div
            initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
            className={`absolute top-full left-1/2 -translate-x-1/2 mt-3 backdrop-blur-md shadow-[0_8px_40px_rgba(0,0,0,0.08)] rounded-xl flex flex-col w-[240px] overflow-hidden ${isDarkBg ? 'bg-white/10' : 'bg-white/95'}`}
          >
             <div className="flex justify-between h-48">
                <div ref={yearContainerRef} className={`flex-1 overflow-y-auto hide-scrollbar text-center border-r py-2 scroll-smooth ${isDarkBg ? 'border-white/10' : 'border-neutral-100'}`}>
                  {years.map(year => (
-                    <div 
+                    <div
                       key={year} onClick={() => setY(year)}
                       className={`h-10 flex items-center justify-center cursor-pointer transition-colors text-xs font-serif ${y === year ? (isDarkBg ? 'bg-white text-black font-medium shadow-sm rounded-md mx-2' : 'bg-neutral-900 text-white font-medium shadow-sm rounded-md mx-2') : (isDarkBg ? 'hover:bg-white/20 text-white/90 mx-2 rounded-md' : 'hover:bg-neutral-100 text-neutral-600 mx-2 rounded-md')}`}
                     >
@@ -623,7 +659,7 @@ const YearMonthPicker = ({
                </div>
                <div ref={monthContainerRef} className="flex-1 overflow-y-auto hide-scrollbar text-center py-2 scroll-smooth">
                  {months.map(month => (
-                    <div 
+                    <div
                       key={month} onClick={() => setM(month)}
                       className={`h-10 flex items-center justify-center cursor-pointer transition-colors text-xs font-serif tracking-widest ${m === month ? (isDarkBg ? 'bg-white text-black font-medium shadow-sm rounded-md mx-2' : 'bg-neutral-900 text-white font-medium shadow-sm rounded-md mx-2') : (isDarkBg ? 'hover:bg-white/20 text-white/90 mx-2 rounded-md' : 'hover:bg-neutral-100 text-neutral-600 mx-2 rounded-md')}`}
                     >
@@ -632,7 +668,7 @@ const YearMonthPicker = ({
                  ))}
                </div>
             </div>
-            <button 
+            <button
               onClick={() => { onApply(y, m); setIsOpen(false); }}
               className={`w-full py-4 border-t text-[10px] uppercase tracking-[0.2em] font-bold transition-colors ${isDarkBg ? 'border-white/20 bg-white/10 hover:bg-white/20 text-white' : 'border-neutral-200 bg-white hover:bg-neutral-50 text-neutral-900'}`}
             >
@@ -645,22 +681,28 @@ const YearMonthPicker = ({
   );
 };
 
-const HorizontalCalendar = ({ 
-  selectedDate, 
+const HorizontalCalendar = ({
+  selectedDate,
   activeTab,
   onSelectDate,
   t,
   setIsFlowerSelectorOpen,
   setIsWishlistModalOpen,
-  isDarkBg
-}: { 
-  selectedDate: Date, 
+  isDarkBg,
+  isDragging,
+  dragHoverDate,
+  onDragHoverDateChange,
+}: {
+  selectedDate: Date,
   activeTab: string,
   onSelectDate: (d: Date) => void,
   t: (en: string, zh: string) => string,
   setIsFlowerSelectorOpen: React.Dispatch<React.SetStateAction<boolean>>,
   setIsWishlistModalOpen: React.Dispatch<React.SetStateAction<boolean>>,
-  isDarkBg: boolean
+  isDarkBg: boolean,
+  isDragging: boolean,
+  dragHoverDate: number | null,
+  onDragHoverDateChange: (value: number | null) => void,
 }) => {
   const [anchorDate, setAnchorDate] = useState(selectedDate);
   const [slideDirection, setSlideDirection] = useState<'left'|'right'|'none'>('none');
@@ -669,45 +711,72 @@ const HorizontalCalendar = ({
   const [isHovered, setIsHovered] = useState(false);
 
   useEffect(() => {
+     if (isDragging) return;
+
      if (selectedDate > anchorDate) setSlideDirection('left');
      else if (selectedDate < anchorDate) setSlideDirection('right');
      else setSlideDirection('none');
      setAnchorDate(selectedDate);
-  }, [selectedDate]);
+  }, [selectedDate, isDragging]);
+
+  const canScroll = !isDragging || dragHoverDate === anchorDate.getTime();
+
+  const applyTimelineScroll = (days: number) => {
+     const safeDays = Math.sign(days) * Math.min(Math.abs(days), 1);
+     const nextDate = new Date(anchorDate);
+     nextDate.setDate(anchorDate.getDate() + safeDays);
+
+     if (isDragging && getDaysFromToday(nextDate) < 0) {
+        return;
+     }
+
+     setSlideDirection(safeDays > 0 ? 'left' : 'right');
+     setAnchorDate(nextDate);
+
+     if (isDragging) {
+        onDragHoverDateChange(nextDate.getTime());
+     }
+  };
 
   const handleWheel = (e: React.WheelEvent) => {
-     wheelAccumulator.current += (e.deltaX || e.deltaY);
+     if (!canScroll) {
+        wheelAccumulator.current = 0;
+        return;
+     }
+
+     const delta = e.deltaX || e.deltaY;
+     if (isDragging && getDaysFromToday(anchorDate) <= 0 && delta < 0) {
+        wheelAccumulator.current = 0;
+        return;
+     }
+
+     wheelAccumulator.current += delta;
      const threshold = 60;
      if (Math.abs(wheelAccumulator.current) > threshold) {
         const days = Math.trunc(wheelAccumulator.current / threshold);
-        // limit days to -1, 0, 1 to prevent huge jumps, and cap accumulator
-        const safeDays = Math.sign(days) * Math.min(Math.abs(days), 1);
-        wheelAccumulator.current = 0; // reset to avoid accumulated fast scrolling
-        setSlideDirection(safeDays > 0 ? 'left' : 'right');
-        setAnchorDate(prev => {
-           const nd = new Date(prev);
-           nd.setDate(nd.getDate() + safeDays);
-           return nd;
-        });
+        wheelAccumulator.current = 0;
+        applyTimelineScroll(days);
      }
   };
 
   const handleTouchStart = (e: React.TouchEvent) => {
+     if (!canScroll) return;
      touchStartX.current = e.touches[0].clientX;
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
-     if (touchStartX.current === null) return;
+     if (!canScroll || touchStartX.current === null) return;
      const deltaX = touchStartX.current - e.touches[0].clientX;
+
+     if (isDragging && getDaysFromToday(anchorDate) <= 0 && deltaX < 0) {
+        touchStartX.current = e.touches[0].clientX;
+        return;
+     }
+
      const threshold = 40;
      if (Math.abs(deltaX) > threshold) {
         const days = deltaX > 0 ? 1 : -1;
-        setSlideDirection(days > 0 ? 'left' : 'right');
-        setAnchorDate(prev => {
-           const nd = new Date(prev);
-           nd.setDate(nd.getDate() + days);
-           return nd;
-        });
+        applyTimelineScroll(days);
         touchStartX.current = e.touches[0].clientX;
      }
   };
@@ -716,15 +785,31 @@ const HorizontalCalendar = ({
      touchStartX.current = null;
   };
 
+  const dragStartAnchorDate = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (isDragging) {
+      if (dragStartAnchorDate.current === null) {
+        dragStartAnchorDate.current = anchorDate.getTime();
+      }
+      return;
+    }
+
+    dragStartAnchorDate.current = null;
+  }, [isDragging, anchorDate]);
   const datesLeft = useMemo(() => {
     const arr = [];
+    const baseDate = isDragging && dragStartAnchorDate.current
+      ? new Date(dragStartAnchorDate.current)
+      : anchorDate;
+
     for(let i = -1; i >= -14; i--) {
-       const d = new Date(anchorDate);
-       d.setDate(anchorDate.getDate() + i);
+       const d = new Date(baseDate);
+       d.setDate(baseDate.getDate() + i);
        arr.push(d);
     }
     return arr;
-  }, [anchorDate]);
+  }, [anchorDate, isDragging]);
 
   const datesRight = useMemo(() => {
     const arr = [];
@@ -736,9 +821,45 @@ const HorizontalCalendar = ({
     return arr;
   }, [anchorDate]);
 
+  const getDragTitle = (hoverTime: number | null) => {
+    if (!hoverTime) return null;
+
+    const diff = getDaysFromToday(hoverTime);
+    if (diff === 0) return t('Plant to Today', '种到今天');
+    if (diff === 1) return t('Plant Tomorrow', '种到明天');
+    if (diff === 2) return t('Plant Day After', '种到后天');
+    if (diff > 2) return `${t('Plant in', '种到')} ${diff} ${t('days', '天后')}`;
+    return `${t('Plant', '种到')} ${Math.abs(diff)} ${t('days ago', '天前')}`;
+  };
+
+  const getDateClassName = (date: Date) => {
+    const diffDays = getDaysFromToday(date);
+    const isValidTarget = diffDays >= 0 && diffDays <= 5;
+    const isFaded = isDragging && !isValidTarget;
+    const isActiveDropTarget = dragHoverDate === date.getTime();
+
+    if (isFaded) {
+      return isDarkBg
+        ? 'text-white/20 opacity-10 pointer-events-none'
+        : 'text-neutral-400 opacity-10 pointer-events-none';
+    }
+
+    const baseState = isDragging
+      ? (isDarkBg ? 'text-white font-medium scale-125 opacity-100' : 'text-neutral-700 font-medium scale-125 opacity-100')
+      : isHovered
+        ? (isDarkBg ? 'text-white/60 hover:text-white' : 'text-neutral-500 hover:text-neutral-900')
+        : (isDarkBg ? 'text-white/40 opacity-40 hover:opacity-100' : 'text-neutral-400 opacity-40 hover:opacity-100');
+
+    const activeState = isActiveDropTarget
+      ? (isDarkBg ? 'text-white scale-[1.35] font-bold opacity-100' : 'text-neutral-900 scale-[1.35] font-bold opacity-100')
+      : '';
+
+    return `${baseState} ${activeState}`;
+  };
+
   return (
-      <div 
-         className="absolute top-[70px] left-0 w-full h-[80px] flex items-center justify-center pointer-events-auto select-none overflow-x-clip overflow-y-visible z-40" 
+      <div
+         className="absolute top-[70px] left-0 w-full h-[80px] flex items-center justify-center pointer-events-auto select-none overflow-x-clip overflow-y-visible z-40"
          onWheel={handleWheel}
          onTouchStart={handleTouchStart}
          onTouchMove={handleTouchMove}
@@ -749,15 +870,16 @@ const HorizontalCalendar = ({
          <div className="absolute left-0 right-[calc(50%+140px)] md:right-[calc(50%+200px)] h-full flex flex-row-reverse justify-start items-center gap-[6vw] md:gap-[4vw] pr-[2vw] md:pr-[2vw] mask-fade-left overflow-hidden">
             <AnimatePresence mode="popLayout" initial={false}>
               {datesLeft.map((d) => (
-                  <motion.div 
+                  <motion.div
                     layout
                     key={`l-${d.getTime()}`}
+                    data-date={d.getTime()}
                     initial={{ opacity: 0, x: slideDirection === 'left' ? 40 : (slideDirection === 'right' ? -40 : 0) }}
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: slideDirection === 'left' ? -40 : (slideDirection === 'right' ? 40 : 0) }}
                     transition={{ duration: 0.4, ease: "easeOut" }}
                     onClick={() => onSelectDate(d)}
-                    className={`cursor-pointer font-serif text-[18px] transition-colors duration-300 shrink-0 ${isHovered ? (isDarkBg ? 'text-white/60 hover:text-white' : 'text-neutral-500 hover:text-neutral-900') : (isDarkBg ? 'text-white/40 opacity-40 hover:opacity-100' : 'text-neutral-400 opacity-40 hover:opacity-100')}`}
+                    className={`cursor-pointer font-serif text-[18px] transition-colors duration-300 shrink-0 p-2 md:p-3 -m-2 md:-m-3 ${getDateClassName(d)}`}
                   >
                     {d.getDate()}
                   </motion.div>
@@ -765,9 +887,25 @@ const HorizontalCalendar = ({
            </AnimatePresence>
         </div>
 
-        <div className="flex flex-col items-center justify-center w-[280px] md:w-[400px] shrink-0 pointer-events-none relative h-full">
-            <h1 className={`font-serif text-[36px] md:text-[54px] leading-tight ${isDarkBg ? 'text-white' : 'text-neutral-900'} tracking-tight mt-1 flex items-baseline justify-center whitespace-nowrap overflow-visible pointer-events-auto`} style={{ textShadow: isDarkBg ? 'none' : '0 4px 20px rgba(249, 248, 246, 0.8)' }}>
+        <div
+          className="flex flex-col items-center justify-center w-[280px] md:w-[400px] shrink-0 pointer-events-auto relative h-full"
+          data-date={anchorDate.getTime()}
+          data-is-center="true"
+        >
+            <h1 className={`font-serif text-[36px] md:text-[54px] leading-tight ${isDarkBg ? 'text-white' : 'text-neutral-900'} tracking-tight mt-1 flex items-baseline justify-center whitespace-nowrap overflow-visible pointer-events-auto transition-colors`} style={{ textShadow: isDarkBg ? 'none' : '0 4px 20px rgba(249, 248, 246, 0.8)' }}>
                <AnimatePresence mode="wait">
+                  {dragHoverDate ? (
+                    <motion.div
+                      key="drag-title"
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      transition={{ duration: 0.2 }}
+                      className={`text-[28px] md:text-[42px] font-medium tracking-wide pointer-events-none ${isDarkBg ? 'text-white' : 'text-neutral-800'}`}
+                    >
+                      {getDragTitle(dragHoverDate)}
+                    </motion.div>
+                  ) : (
                   <motion.div
                     key={activeTab}
                     initial={{ opacity: 0, filter: 'blur(4px)' }}
@@ -777,13 +915,13 @@ const HorizontalCalendar = ({
                     className="flex items-baseline"
                   >
                     {activeTab === 'todo' ? (
-                       <motion.div 
+                       <motion.div
                          onClick={() => setIsFlowerSelectorOpen(true)}
                          initial="initial"
                          whileHover="hover"
                          className={`pl-6 md:pl-8 flex items-baseline cursor-pointer transition-colors duration-300 pointer-events-auto ${isDarkBg ? 'hover:text-white/80' : 'hover:text-black hover:drop-shadow-[0_0_15px_rgba(0,0,0,0.15)]'}`}
                        >
-                         {"Today's Flow".split("").map((char, index) => (
+                         {TODO_TITLE_CHARS.map((char, index) => (
                              <motion.span
                                  key={index}
                                  className="inline-block"
@@ -799,7 +937,7 @@ const HorizontalCalendar = ({
                                  {char === " " ? "\u00A0" : char}
                              </motion.span>
                          ))}
-                         <motion.span 
+                         <motion.span
                             className={`font-light italic text-[24px] md:text-[36px] ml-[2px] inline-block ${isDarkBg ? 'text-white/40' : 'text-neutral-400'}`}
                             variants={{
                                 initial: { y: 0, scale: 1 },
@@ -814,13 +952,13 @@ const HorizontalCalendar = ({
                          </motion.span>
                        </motion.div>
                     ) : (
-                       <motion.div 
+                       <motion.div
                          onClick={() => setIsWishlistModalOpen(true)}
                          initial="initial"
                          whileHover="hover"
                          className={`pl-4 md:pl-6 flex items-baseline cursor-pointer transition-colors duration-300 pointer-events-auto ${isDarkBg ? 'hover:text-white/80' : 'hover:text-black hover:drop-shadow-[0_0_15px_rgba(0,0,0,0.15)]'}`}
                        >
-                         {"To Grow".split("").map((char, index) => (
+                         {GRASS_TITLE_CHARS.map((char, index) => (
                              <motion.span
                                  key={index}
                                  className="inline-block"
@@ -839,12 +977,13 @@ const HorizontalCalendar = ({
                        </motion.div>
                     )}
                   </motion.div>
+                  )}
                 </AnimatePresence>
             </h1>
             <div className="relative flex flex-col items-center w-full mt-1">
                <div className="relative w-[60px] h-[36px] overflow-hidden flex items-center justify-center [mask-image:linear-gradient(to_right,transparent,black_20%,black_80%,transparent)] [-webkit-mask-image:linear-gradient(to_right,transparent,black_20%,black_80%,transparent)]">
                   <AnimatePresence initial={false}>
-                    <motion.div 
+                    <motion.div
                        key={selectedDate.getTime()}
                        initial={{ opacity: 0, x: slideDirection === 'left' ? 40 : (slideDirection === 'right' ? -40 : 0) }}
                        animate={{ opacity: 1, x: 0 }}
@@ -856,9 +995,9 @@ const HorizontalCalendar = ({
                     </motion.div>
                   </AnimatePresence>
                </div>
-               
+
                {dateToYMD(selectedDate) !== dateToYMD(new Date()) && (
-                  <button 
+                  <button
                     onClick={(e) => { e.stopPropagation(); onSelectDate(new Date()); }}
                     className={`absolute top-full mt-2 text-[10px] tracking-widest font-sans uppercase pointer-events-auto transition-colors whitespace-nowrap ${isDarkBg ? 'text-white/50 hover:text-white' : 'text-neutral-500 hover:text-neutral-900'}`}
                   >
@@ -871,15 +1010,16 @@ const HorizontalCalendar = ({
         <div className="absolute left-[calc(50%+140px)] md:left-[calc(50%+200px)] right-0 h-full flex justify-start items-center gap-[6vw] md:gap-[4vw] pl-[2vw] md:pl-[2vw] mask-fade-right overflow-hidden">
            <AnimatePresence mode="popLayout" initial={false}>
               {datesRight.map((d) => (
-                  <motion.div 
+                  <motion.div
                     layout
                     key={`r-${d.getTime()}`}
+                    data-date={d.getTime()}
                     initial={{ opacity: 0, x: slideDirection === 'left' ? 40 : (slideDirection === 'right' ? -40 : 0) }}
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: slideDirection === 'left' ? -40 : (slideDirection === 'right' ? 40 : 0) }}
                     transition={{ duration: 0.4, ease: "easeOut" }}
                     onClick={() => onSelectDate(d)}
-                    className={`cursor-pointer font-serif text-[18px] transition-colors duration-300 shrink-0 ${isHovered ? (isDarkBg ? 'text-white/60 hover:text-white' : 'text-neutral-500 hover:text-neutral-900') : (isDarkBg ? 'text-white/40 opacity-40 hover:opacity-100' : 'text-neutral-400 opacity-40 hover:opacity-100')}`}
+                    className={`cursor-pointer font-serif text-[18px] transition-colors duration-300 shrink-0 p-2 md:p-3 -m-2 md:-m-3 ${getDateClassName(d)}`}
                   >
                     {d.getDate()}
                   </motion.div>
@@ -889,11 +1029,10 @@ const HorizontalCalendar = ({
       </div>
   );
 };
-
 const WeatherOverlay = React.memo(({ weather }: { weather: 'sunny' | 'rainy' }) => {
   const rainDrops = useMemo(() => {
     return Array.from({ length: 50 }).map((_, i) => {
-      const leftValue = -10 + Math.random() * 140; 
+      const leftValue = -10 + Math.random() * 140;
       const left = `${leftValue}%`;
       const animationDuration = `${0.5 + Math.random() * 0.5}s`;
       const animationDelay = `-${Math.random() * 5}s`;
@@ -929,7 +1068,7 @@ const WeatherOverlay = React.memo(({ weather }: { weather: 'sunny' | 'rainy' }) 
           }}
         />
       ))}
-      
+
       {weather === 'rainy' && waterStreaks.map((streak, i) => (
         <div
           key={`streak-${i}`}
@@ -940,7 +1079,7 @@ const WeatherOverlay = React.memo(({ weather }: { weather: 'sunny' | 'rainy' }) 
           }}
         />
       ))}
-      
+
       <style dangerouslySetInnerHTML={{__html: `
         @keyframes fall-rain {
           0% { transform: translate(0, -10vh) rotate(15deg); }
@@ -1050,8 +1189,36 @@ export default function App() {
   const [activeFlowerTab, setActiveFlowerTab] = useState<number>(1);
   const [flowerSelection, setFlowerSelection] = useState<Record<number, string[]>>(() => normalizeFlowerSelection());
   const [reminderDateKey, setReminderDateKey] = useState(() => dateToYMD(new Date()));
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragHoverDate, setDragHoverDate] = useState<number | null>(null);
+  const [dragHoverDelete, setDragHoverDelete] = useState(false);
   const isDraggingRef = useRef(false);
+  const dragHoverDateRef = useRef<number | null>(null);
+  const dragHoverDeleteRef = useRef(false);
   const canvasRef = useRef<HTMLDivElement>(null);
+
+  const updateDragHoverDate = (value: number | null) => {
+    setDragHoverDate(value);
+    dragHoverDateRef.current = value;
+  };
+
+  const updateDragHoverDelete = (value: boolean) => {
+    setDragHoverDelete(value);
+    dragHoverDeleteRef.current = value;
+  };
+  const isMonthPickerObscured = isSettingsOpen || isWishlistModalOpen || isFlowerSelectorOpen;
+
+  const guideIds = [
+    'monthPicker',
+    'timeline',
+    'todo-title',
+    'grass-title',
+    'todo-input',
+    'grass-input',
+  ];
+  const shouldShowGuide = (guideId: string) => (
+    visibleGuides.includes(guideId) && !isSettingsOpen && !isWishlistModalOpen && !isFlowerSelectorOpen
+  );
 
   const dismissGuide = (guideId: string) => {
     setVisibleGuides((prev) => prev.filter((id) => id !== guideId));
@@ -1090,28 +1257,31 @@ export default function App() {
 
     const fs = readStoredValue(STORAGE_KEYS.flowerSelection, LEGACY_STORAGE_KEYS.flowerSelection);
     if (fs) {
-      try { 
+      try {
         const parsed = JSON.parse(fs) as Record<number, string[]>;
         const normalized = normalizeFlowerSelection(parsed);
         setFlowerSelection(normalized);
         localStorage.setItem(STORAGE_KEYS.flowerSelection, JSON.stringify(normalized));
       } catch (e) {}
     }
-    
+
     // Automatically open modal on daily first startup
     const visitDate = readStoredValue(STORAGE_KEYS.lastVisitDate, LEGACY_STORAGE_KEYS.lastVisitDate);
     const todayStr = dateToYMD(today);
+    if (visitDate === null) {
+      setVisibleGuides(guideIds);
+    }
     if (visitDate !== todayStr) {
       setIsFlowerSelectorOpen(true);
       localStorage.setItem(STORAGE_KEYS.lastVisitDate, todayStr);
     }
-    
+
     const ni = readStoredValue(
       STORAGE_KEYS.notificationInterval,
       LEGACY_STORAGE_KEYS.notificationInterval,
     );
     if (ni) setNotificationInterval(parseInt(ni, 10));
-    
+
     const ne = readStoredValue(STORAGE_KEYS.notificationEnabled);
     if (ne === 'false') setIsNotificationEnabled(false);
     const nmi = readStoredValue(
@@ -1158,7 +1328,7 @@ export default function App() {
     setMaxUncompletedFlowers(v);
     localStorage.setItem(STORAGE_KEYS.maxUncompletedFlowers, v.toString());
   };
-  
+
   const saveNotificationInterval = (v: number) => {
     setNotificationInterval(v);
     localStorage.setItem(STORAGE_KEYS.notificationInterval, v.toString());
@@ -1226,13 +1396,13 @@ export default function App() {
 
   // Spices state
   const [importance, setImportance] = useState(2);
-  const [showUntilDays, setShowUntilDays] = useState(0); 
+  const [showUntilDays, setShowUntilDays] = useState(0);
   const [isCustomDateOpen, setIsCustomDateOpen] = useState(false);
   const [isDaily, setIsDaily] = useState(false);
   const [isLight, setIsLight] = useState(false);
   const [interest, setInterest] = useState(2);
   const [speedLevel, setSpeedLevel] = useState(2);
-  
+
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -1285,7 +1455,7 @@ export default function App() {
       language,
       tasks: reminderTasks,
     });
-    
+
     void desktopBridge.updateTrayMenu({
       lang: language,
       isNotificationEnabled,
@@ -1299,7 +1469,7 @@ export default function App() {
     return desktopBridge.onTraySettingsChanged((payload) => {
       setIsNotificationEnabled(payload.isNotificationEnabled);
       localStorage.setItem(STORAGE_KEYS.notificationEnabled, String(payload.isNotificationEnabled));
-      
+
       setNotificationInterval(payload.notificationInterval);
       localStorage.setItem(STORAGE_KEYS.notificationInterval, String(payload.notificationInterval));
     });
@@ -1354,7 +1524,7 @@ export default function App() {
         const grassChoices = ['todo_example', 'todo3', 'todo3_white', 'todo5', 'todo5_white', 'todo5_v2', 'todo5_white_v2'];
         randomFlowerId = grassChoices[Math.floor(Math.random() * grassChoices.length)];
       }
-      
+
       const newItem: Item = {
         id: Math.random().toString(36).substring(2, 9),
         title: mainTitle,
@@ -1376,9 +1546,10 @@ export default function App() {
       };
       setItems((prev) => [...prev, newItem]);
     }
-    
+
     setInputValue('');
     setIsMultiline(false);
+    setIsFocused(false);
     inputRef.current?.blur();
   };
 
@@ -1403,7 +1574,140 @@ export default function App() {
     )));
   };
 
+  const moveToDate = (id: string, targetTime: number) => {
+    const nextYMD = dateToYMD(new Date(targetTime));
+
+    setItems((prev) => prev.map((item) => {
+      if (item.id !== id || item.isDaily) {
+        return item;
+      }
+
+      return {
+        ...item,
+        type: 'todo',
+        dateStr: nextYMD,
+        updatedAt: Date.now(),
+      };
+    }));
+    setHoveredItemId(null);
+  };
+
+  const commitItemDragDrop = (id: string, offset: DragOffset) => {
+    if (dragHoverDeleteRef.current) {
+      deleteItem(id);
+      return;
+    }
+
+    if (activeTab === 'todo' && dragHoverDateRef.current) {
+      moveToDate(id, dragHoverDateRef.current);
+      return;
+    }
+
+    commitItemDragPosition(id, offset);
+  };
+
+  const getDragClientPoint = (event: MouseEvent | TouchEvent | PointerEvent) => {
+    if ('touches' in event) {
+      const touch = event.touches[0];
+      return touch ? { clientX: touch.clientX, clientY: touch.clientY } : null;
+    }
+
+    return { clientX: event.clientX, clientY: event.clientY };
+  };
+
+  const updateItemDragTarget = (
+    event: MouseEvent | TouchEvent | PointerEvent,
+    target: EventTarget | null,
+  ) => {
+    const point = getDragClientPoint(event);
+    if (!point || typeof window === 'undefined') {
+      updateDragHoverDelete(false);
+      updateDragHoverDate(null);
+      return;
+    }
+
+    if (point.clientY > window.innerHeight - 80) {
+      updateDragHoverDelete(true);
+      updateDragHoverDate(null);
+      return;
+    }
+
+    if (activeTab !== 'todo') {
+      updateDragHoverDelete(false);
+      updateDragHoverDate(null);
+      return;
+    }
+
+    if (point.clientY >= 180) {
+      updateDragHoverDelete(false);
+      updateDragHoverDate(null);
+      return;
+    }
+
+    updateDragHoverDelete(false);
+
+    let dateElement: Element | null = null;
+    const dateElements = Array.from(document.querySelectorAll('[data-date]'));
+
+    for (const element of dateElements) {
+      const rect = element.getBoundingClientRect();
+      if (point.clientX >= rect.left && point.clientX <= rect.right) {
+        dateElement = element;
+        break;
+      }
+    }
+
+    if (!dateElement) {
+      const targetNode = target as HTMLElement | null;
+      const draggedElement = targetNode?.closest ? (targetNode.closest('.group') as HTMLElement | null) : targetNode;
+
+      if (draggedElement) {
+        draggedElement.style.pointerEvents = 'none';
+      }
+
+      const elementUnderPointer = document.elementFromPoint(point.clientX, point.clientY);
+
+      if (draggedElement) {
+        draggedElement.style.pointerEvents = 'auto';
+      }
+
+      dateElement = elementUnderPointer?.closest('[data-date]') || null;
+    }
+
+    if (!dateElement) {
+      updateDragHoverDate(null);
+      return;
+    }
+
+    const time = parseInt(dateElement.getAttribute('data-date') || '0', 10);
+    if (time <= 0) {
+      updateDragHoverDate(null);
+      return;
+    }
+
+    const isCenter = dateElement.getAttribute('data-is-center') === 'true';
+    const todayStart = getStartOfDay(new Date());
+    let targetTime = time;
+    let diffDays = getDaysFromToday(time);
+
+    if (isCenter && diffDays < 0) {
+      targetTime = todayStart.getTime();
+      diffDays = 0;
+    }
+
+    if (isCenter || (diffDays >= 0 && diffDays <= 5)) {
+      updateDragHoverDate(targetTime);
+      return;
+    }
+
+    updateDragHoverDate(null);
+  };
+
   const releaseItemDrag = () => {
+    updateDragHoverDelete(false);
+    updateDragHoverDate(null);
+    setIsDragging(false);
+
     window.setTimeout(() => {
       isDraggingRef.current = false;
     }, 150);
@@ -1413,20 +1717,20 @@ export default function App() {
     e.stopPropagation();
     if (isDraggingRef.current) return;
     const currentYMD = dateToYMD(selectedDate);
-    
+
     setItems((prev) => prev.map(item => {
       if (item.id === id) {
         if (item.isDaily) {
           const wasCompleted = item.completedDates?.includes(currentYMD);
           const isAllCompleted = !wasCompleted;
-          
+
           let newCompletedDates = [...(item.completedDates || [])];
           if (isAllCompleted && !newCompletedDates.includes(currentYMD)) {
              newCompletedDates.push(currentYMD);
           } else if (!isAllCompleted) {
              newCompletedDates = newCompletedDates.filter(d => d !== currentYMD);
           }
-          
+
           const newStepsCompletedDates = { ...(item.stepsCompletedDates || {}) };
           if (item.steps && item.steps.length > 0) {
              item.steps.forEach(s => {
@@ -1456,7 +1760,7 @@ export default function App() {
     e.stopPropagation();
     if (isDraggingRef.current) return;
     const currentYMD = dateToYMD(selectedDate);
-    
+
     setItems((prev) => prev.map(item => {
       if (item.id === itemId && item.steps) {
         if (item.isDaily) {
@@ -1468,7 +1772,7 @@ export default function App() {
            } else {
               stepsDates[stepId] = dates.filter(d => d !== currentYMD);
            }
-           
+
            const allCompleted = item.steps.every(s => (stepsDates[s.id] || []).includes(currentYMD));
            let newCompletedDates = [...(item.completedDates || [])];
            if (allCompleted && !newCompletedDates.includes(currentYMD)) {
@@ -1476,7 +1780,7 @@ export default function App() {
            } else if (!allCompleted) {
               newCompletedDates = newCompletedDates.filter(d => d !== currentYMD);
            }
-           
+
            return { ...item, stepsCompletedDates: stepsDates, completedDates: newCompletedDates, updatedAt: Date.now() };
         } else {
           const newSteps = item.steps.map(s => s.id === stepId ? { ...s, completed: !s.completed } : s);
@@ -1488,9 +1792,9 @@ export default function App() {
     }));
   };
 
-  const deleteItem = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (isDraggingRef.current) return;
+  const deleteItem = (id: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    if (isDraggingRef.current && e) return;
     setItems((prev) => prev.map(item => {
       if (item.id === id) {
          if (item.isDaily) {
@@ -1508,9 +1812,9 @@ export default function App() {
   const handleEditClick = (item: Item, e: React.MouseEvent) => {
     e.stopPropagation();
     if (isDraggingRef.current) return;
-    
+
     setIsMultiline(item.steps && item.steps.length > 0 ? true : false);
-    
+
     let text = item.title;
     if (item.steps && item.steps.length > 0) {
       text += '\n' + item.steps.map(s => `- ${s.title}`).join('\n');
@@ -1529,7 +1833,7 @@ export default function App() {
     setInterest(item.interest);
     setSpeedLevel(item.speedLevel);
     setEditingItemId(item.id);
-    
+
     // focus input
     setTimeout(() => {
       inputRef.current?.focus();
@@ -1542,6 +1846,34 @@ export default function App() {
     setItems((prev) => prev.map(item => item.id === id ? { ...item, type: 'grass', inGarden: true, updatedAt: Date.now() } : item));
   };
 
+  const moveToToday = (id: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    if (isDraggingRef.current && e) return;
+
+    const nextYMD = dateToYMD(new Date());
+    setItems((prev) => prev.map((item) => (
+      item.id === id
+        ? { ...item, type: 'todo', dateStr: nextYMD, updatedAt: Date.now() }
+        : item
+    )));
+    setHoveredItemId(null);
+  };
+
+  const moveToTomorrow = (id: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    if (isDraggingRef.current && e) return;
+
+    const nextDate = new Date();
+    nextDate.setDate(nextDate.getDate() + 1);
+    const nextYMD = dateToYMD(nextDate);
+
+    setItems((prev) => prev.map((item) => (
+      item.id === id
+        ? { ...item, type: 'todo', dateStr: nextYMD, updatedAt: Date.now() }
+        : item
+    )));
+    setHoveredItemId(null);
+  };
   const toggleGardenState = (id: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     setItems((prev) => prev.map(item => item.id === id ? { ...item, inGarden: !item.inGarden, updatedAt: Date.now() } : item));
@@ -1554,6 +1886,16 @@ export default function App() {
     setItems((prev) => prev.map(item => item.id === id ? { ...item, type: 'todo', inGarden: false, dateStr: currentYMD, updatedAt: Date.now() } : item));
   };
 
+  const commitInputFromOutside = () => {
+    if (inputValue.trim()) {
+      handleAddItem({ preventDefault: () => {} } as React.FormEvent);
+      return;
+    }
+
+    inputRef.current?.blur();
+    setIsFocused(false);
+  };
+
   const activeItems = useMemo(() => {
     const selectedYMD = dateToYMD(selectedDate);
     const selectedTime = new Date(`${selectedYMD}T00:00:00`).getTime();
@@ -1562,20 +1904,20 @@ export default function App() {
       if (i.type !== activeTab) return false;
       if (activeTab === 'todo') {
          if (i.dateStr === selectedYMD) return true;
-         
+
          const itemTime = new Date(`${i.dateStr}T00:00:00`).getTime();
          if (i.isDaily && selectedTime >= itemTime) {
             if (i.endDate && selectedYMD >= i.endDate) return false;
             return true;
          }
-         
+
          if (i.showUntilDays > 0) {
             const expireTime = itemTime + i.showUntilDays * 24 * 60 * 60 * 1000;
             if (selectedTime >= itemTime && selectedTime <= expireTime) return true;
          }
          return false;
       }
-      return true; 
+      return true;
     });
 
     if (activeTab === 'grass') {
@@ -1585,15 +1927,23 @@ export default function App() {
          if (!a.inGarden && b.inGarden) return 1;
          return (b.updatedAt||b.createdAt) - (a.updatedAt||a.createdAt);
       };
-      const uncompleted = grasses.filter(i => !i.completed);
-      const completed = grasses.filter(i => i.completed);
+      const uncompleted: Item[] = [];
+      const completed: Item[] = [];
+
+      grasses.forEach((item) => {
+        if (item.completed) {
+          completed.push(item);
+        } else {
+          uncompleted.push(item);
+        }
+      });
 
       const topUncompletedIds = new Set(uncompleted.sort(sortFn).slice(0, maxUncompletedFlowers).map(i => i.id));
       const topCompletedIds = new Set(completed.sort(sortFn).slice(0, maxCompletedFlowers).map(i => i.id));
 
       return grasses.filter(i => topUncompletedIds.has(i.id) || topCompletedIds.has(i.id));
     }
-    
+
     // Map items to dynamically compute completed statuses if they are daily
     return rawItems.map(item => {
       if (activeTab === 'todo' && item.isDaily) {
@@ -1607,45 +1957,63 @@ export default function App() {
     });
   }, [items, activeTab, selectedDate, maxCompletedFlowers, maxUncompletedFlowers]);
 
+  const hasWishlistItems = useMemo(() => items.some(i => i.type === 'grass'), [items]);
+  const wishlistItems = useMemo(() => {
+    const query = wishlistSearchQuery.trim().toLowerCase();
+
+    return items
+      .filter(i => i.type === 'grass')
+      .filter(i => query === '' || (i.title && i.title.toLowerCase().includes(query)))
+      .sort((a,b) => {
+        const orderA = a.order ?? Number.MAX_SAFE_INTEGER;
+        const orderB = b.order ?? Number.MAX_SAFE_INTEGER;
+        if (orderA !== orderB) return orderA - orderB;
+        return (b.updatedAt || b.createdAt) - (a.updatedAt || a.createdAt);
+      });
+  }, [items, wishlistSearchQuery]);
+
   if (!isLoaded) return null;
 
   return (
-    <div 
+    <div
       className="fixed inset-0 overflow-hidden font-sans selection:bg-black/10 transition-colors duration-500"
       style={{ backgroundColor: bgColor }}
-      onClick={() => inputRef.current?.blur()}
+      onClick={commitInputFromOutside}
     >
       <TitleBar t={t} onOpenSettings={() => setIsSettingsOpen(true)} isDarkBg={isDarkBg} />
       <WeatherOverlay weather={weather} />
-      <YearMonthPicker 
-        isSettingsOpen={isSettingsOpen}
+      <YearMonthPicker
+        isObscured={isMonthPickerObscured}
         t={t}
-        currentDate={selectedDate} 
+        currentDate={selectedDate}
         onApply={(y, m) => {
            const nextD = new Date(selectedDate);
            nextD.setFullYear(y);
            nextD.setMonth(m);
            setSelectedDate(nextD);
            setAnchorDate(nextD);
-        }} 
+        }}
         isDarkBg={isDarkBg}
       />
 
-      <HorizontalCalendar 
+      <HorizontalCalendar
         t={t}
-        selectedDate={selectedDate} 
+        selectedDate={selectedDate}
         activeTab={activeTab}
         setIsFlowerSelectorOpen={setIsFlowerSelectorOpen}
         setIsWishlistModalOpen={setIsWishlistModalOpen}
         onSelectDate={(d) => {
            setSelectedDate(d);
-        }} 
+        }}
         isDarkBg={isDarkBg}
+        isDragging={activeTab === 'todo' && isDragging}
+        dragHoverDate={activeTab === 'todo' ? dragHoverDate : null}
+        onDragHoverDateChange={updateDragHoverDate}
       />
 
       <GuideBubble
         id="monthPicker"
-        visible={visibleGuides.includes('monthPicker') && !isSettingsOpen && !isWishlistModalOpen}
+        visible={shouldShowGuide('monthPicker')}
         onDismiss={dismissGuide}
         positionClasses="top-[25px] left-1/2 ml-[80px] md:ml-[110px]"
         text={t('Click here to jump to a specific month or year.', '点击此处可以选择指定的年月。')}
@@ -1658,7 +2026,7 @@ export default function App() {
       />
       <GuideBubble
         id={activeTab === 'todo' ? 'todo-title' : 'grass-title'}
-        visible={visibleGuides.includes(activeTab === 'todo' ? 'todo-title' : 'grass-title') && !isSettingsOpen && !isWishlistModalOpen}
+        visible={shouldShowGuide(activeTab === 'todo' ? 'todo-title' : 'grass-title')}
         onDismiss={dismissGuide}
         positionClasses="top-[205px] left-1/2 -translate-x-[260px] md:-translate-x-[330px]"
         text={activeTab === 'todo'
@@ -1673,7 +2041,7 @@ export default function App() {
       />
       <GuideBubble
         id="timeline"
-        visible={visibleGuides.includes('timeline') && !isSettingsOpen && !isWishlistModalOpen}
+        visible={shouldShowGuide('timeline')}
         onDismiss={dismissGuide}
         positionClasses="top-[150px] left-1/2 ml-[160px] md:ml-[240px]"
         text={t('Scroll or drag horizontally to switch dates.', '滚动鼠标滚轮或左右滑动，来切换查看不同日期。')}
@@ -1686,7 +2054,7 @@ export default function App() {
       />
       <GuideBubble
         id={activeTab === 'todo' ? 'todo-input' : 'grass-input'}
-        visible={visibleGuides.includes(activeTab === 'todo' ? 'todo-input' : 'grass-input') && !isSettingsOpen && !isWishlistModalOpen}
+        visible={shouldShowGuide(activeTab === 'todo' ? 'todo-input' : 'grass-input')}
         onDismiss={dismissGuide}
         positionClasses="bottom-[100px] md:bottom-[110px] left-1/2 ml-[10%] md:ml-[20%]"
         text={activeTab === 'todo'
@@ -1701,20 +2069,20 @@ export default function App() {
       />
       {/* Nav */}
       <div className={`absolute bottom-12 left-6 md:left-14 flex flex-col gap-6 text-[10px] md:text-[11px] uppercase tracking-[0.2em] font-medium z-40 ${isDarkBg ? 'text-white/60' : 'text-neutral-400 mix-blend-multiply'}`}>
-        <button 
-          onClick={() => { setActiveTab('todo'); setIsWishlistModalOpen(false); }} 
+        <button
+          onClick={() => { setActiveTab('todo'); setIsWishlistModalOpen(false); }}
           className={`text-left transition-all duration-500 origin-left ${activeTab === 'todo' && !isWishlistModalOpen ? (isDarkBg ? 'text-white scale-100 opacity-100' : 'text-neutral-900 scale-100 opacity-100') : (isDarkBg ? 'hover:text-white/90 scale-90 opacity-60' : 'hover:text-neutral-600 scale-90 opacity-60')}`}
         >
           {t('Daily Tasks', '今日任务')}
         </button>
-        <button 
-          onClick={() => { setActiveTab('grass'); setIsWishlistModalOpen(false); }} 
+        <button
+          onClick={() => { setActiveTab('grass'); setIsWishlistModalOpen(false); }}
           className={`text-left transition-all duration-500 origin-left ${activeTab === 'grass' && !isWishlistModalOpen ? (isDarkBg ? 'text-white scale-100 opacity-100' : 'text-neutral-900 scale-100 opacity-100') : (isDarkBg ? 'hover:text-white/90 scale-90 opacity-60' : 'hover:text-neutral-600 scale-90 opacity-60')}`}
         >
           {t('Wishlist Garden', '种草花园')}
         </button>
-        <button 
-          onClick={() => setIsSettingsOpen(true)} 
+        <button
+          onClick={() => setIsSettingsOpen(true)}
           className={`text-left transition-all duration-500 origin-left scale-90 opacity-60 ${isDarkBg ? 'hover:text-white/90' : 'hover:text-neutral-600'}`}
           title={t('Settings', '设置')}
         >
@@ -1736,7 +2104,7 @@ export default function App() {
                const cy = rect.top + rect.height / 2;
 
                // Tooltip is max 200px wide, so it needs 100px clearance on each side from the window edge.
-               const minShift = 110 - cx; 
+               const minShift = 110 - cx;
                const maxShift = (winW - 110) - cx;
                let shiftX = 0;
                if (shiftX < minShift) shiftX = minShift;
@@ -1751,7 +2119,7 @@ export default function App() {
 
                setTooltipPos(prev => {
                   const p = prev[item.id];
-                  // use Math.round to avoid tiny fractional re-renders 
+                  // use Math.round to avoid tiny fractional re-renders
                   const rTx = Math.round(shiftX);
                   const rTy = Math.round(ty);
                   if (p?.x === rTx && p?.y === rTy) return prev;
@@ -1765,18 +2133,22 @@ export default function App() {
                 key={item.id}
                 item={item}
                 zIndex={hoveredItemId === item.id ? 50 : (item.completed ? 1 : 10)}
-                onDragStart={() => { isDraggingRef.current = true; }}
-                onDragMove={(target) => {
+                onDragStart={() => {
+                  isDraggingRef.current = true;
+                  setIsDragging(true);
+                }}
+                onDragMove={(event, target) => {
                    const targetNode = target as HTMLElement;
                    const node = targetNode?.closest ? (targetNode.closest('.group') || targetNode) : targetNode;
                    if (node && node.getBoundingClientRect) {
                       updateTooltipPosition((node as HTMLElement).getBoundingClientRect());
                    }
+                   updateItemDragTarget(event, target);
                 }}
-                onDragCommit={commitItemDragPosition}
+                onDragCommit={commitItemDragDrop}
                 onDragRelease={releaseItemDrag}
               >
-                <div 
+                <div
                   className="flex flex-col items-center justify-center relative hover:z-10 group"
                   onMouseEnter={(e) => {
                      setHoveredItemId(item.id);
@@ -1784,16 +2156,21 @@ export default function App() {
                   }}
                   onMouseLeave={() => setHoveredItemId(null)}
                 >
-                  <div 
-                    className="relative flex justify-center items-center pointer-events-auto w-[180px] h-[220px] cursor-pointer"
+                  <div
+                    aria-hidden="true"
+                    className="absolute left-1/2 top-[-96px] z-0 h-[240px] w-[150px] -translate-x-1/2 rounded-full pointer-events-auto cursor-pointer"
+                    onClick={(e) => handleItemClick(item.id, e)}
+                  />
+                  <div
+                    className="relative z-10 flex justify-center items-center pointer-events-auto w-[180px] h-[220px] cursor-pointer"
                     onClick={(e) => handleItemClick(item.id, e)}
                   >
-                    <GardenFlower itemId={item.id} flowerId={item.flowerId} type={item.type} level={levelValue} completed={item.completed} isHovered={hoveredItemId === item.id} />
+                    <MemoGardenFlower itemId={item.id} flowerId={item.flowerId} type={item.type} level={levelValue} completed={item.completed} isHovered={hoveredItemId === item.id} />
                   </div>
 
-                  <motion.div 
+                  <motion.div
                     initial={false}
-                    animate={{ 
+                    animate={{
                        x: `calc(-50% + ${tooltipPos[item.id]?.x ?? 0}px)`,
                        y: tooltipPos[item.id]?.y ?? 0,
                        scale: hoveredItemId === item.id && !item.completed ? 1.05 : 1
@@ -1803,17 +2180,17 @@ export default function App() {
                     className={`absolute top-[60px] left-1/2 text-center w-max max-w-[200px] flex flex-col items-center z-20 pointer-events-auto`}
                   >
                     <div className="absolute inset-0 -m-4 bg-transparent -z-10" />
-                    <p 
+                    <p
                       onClick={(e) => handleItemClick(item.id, e)}
                       className={`font-serif ${levelValue === 3 ? 'text-[14px] md:text-[15px]' : levelValue === 1 ? 'text-[10px] md:text-[11px]' : 'text-[11px] md:text-[12px]'} whitespace-pre-wrap transition-all duration-300 px-4 py-1.5 cursor-pointer rounded-full ${hoveredItemId === item.id && !item.completed ? (isDarkBg ? 'bg-white text-neutral-900 shadow-xl font-medium' : 'bg-neutral-900 text-white shadow-xl font-medium') : (item.completed ? (isDarkBg ? 'text-white/40' : 'text-neutral-300') : (isDarkBg ? 'text-white/80' : 'text-neutral-600'))}`}
                       style={{ backgroundColor: hoveredItemId === item.id && !item.completed ? undefined : bgColor }}
                     >
                       {item.title}
                     </p>
-                    
+
                     {!item.completed && (
                       <>
-                        <div 
+                        <div
                           className={`flex flex-wrap gap-2 justify-center mt-2 px-3 py-1 text-[8px] uppercase tracking-[0.2em] font-medium transition-all duration-300 rounded-full ${hoveredItemId === item.id ? (isDarkBg ? 'bg-white/10 backdrop-blur-sm text-white/80 shadow-sm border border-white/20' : 'bg-white/90 backdrop-blur-sm text-neutral-500 shadow-sm border border-neutral-200/50') : (isDarkBg ? 'text-white/50' : 'text-neutral-400')}`}
                           style={{ backgroundColor: hoveredItemId === item.id ? undefined : bgColor }}
                         >
@@ -1845,8 +2222,8 @@ export default function App() {
                         {item.steps && item.steps.length > 0 && (
                           <div className={`flex flex-col gap-1.5 mt-2 transition-opacity duration-300 ${hoveredItemId === item.id ? 'opacity-100 pointer-events-auto' : 'opacity-60 pointer-events-none'}`}>
                             {item.steps.map((step) => (
-                              <div 
-                                key={step.id} 
+                              <div
+                                key={step.id}
                                 onClick={(e) => toggleStep(item.id, step.id, e)}
                                 className={`flex items-center gap-2 px-3 py-1.5 bg-white/70 backdrop-blur-sm border rounded-full text-[10px] cursor-pointer transition-all ${step.completed ? 'text-neutral-400 border-transparent line-through' : 'text-neutral-700 border-neutral-200 hover:border-neutral-400'}`}
                               >
@@ -1862,10 +2239,10 @@ export default function App() {
                             ))}
                           </div>
                         )}
-                        
+
                         <div className={`flex gap-3 justify-center mt-3 transition-opacity duration-300 ${hoveredItemId === item.id ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
                           {item.type === 'todo' && (
-                            <div 
+                            <div
                               className="w-6 h-6 flex items-center justify-center bg-white/90 backdrop-blur-sm border border-neutral-200 rounded-full text-neutral-400 hover:text-green-600 hover:border-green-200 shadow-sm cursor-pointer"
                               title={t("Plant in Garden", "移植到种草花园")}
                               onClick={(e) => transplantItem(item.id, e)}
@@ -1874,7 +2251,7 @@ export default function App() {
                             </div>
                           )}
                           {item.type === 'grass' && !item.completed && (
-                            <div 
+                            <div
                               className="w-6 h-6 flex items-center justify-center bg-white/90 backdrop-blur-sm border border-neutral-200 rounded-full text-neutral-400 hover:text-indigo-500 hover:border-indigo-200 shadow-sm cursor-pointer"
                               title={t("Add to Today's Task", "移植到今日任务")}
                               onClick={(e) => addToTodayTask(item.id, e)}
@@ -1883,7 +2260,7 @@ export default function App() {
                             </div>
                           )}
                           {item.type === 'grass' && item.inGarden && (
-                            <div 
+                            <div
                               className="w-6 h-6 flex items-center justify-center bg-white/90 backdrop-blur-sm border border-neutral-200 rounded-full text-neutral-400 hover:text-neutral-600 hover:border-neutral-300 shadow-sm cursor-pointer"
                               title={t("Send to List View", "移至列表视图")}
                               onClick={(e) => toggleGardenState(item.id, e)}
@@ -1891,20 +2268,23 @@ export default function App() {
                               <Archive size={12} strokeWidth={2.5}/>
                             </div>
                           )}
-                          <div 
+                          <div
                             className="w-6 h-6 flex items-center justify-center bg-white/90 backdrop-blur-sm border border-neutral-200 rounded-full text-neutral-400 hover:text-blue-500 hover:border-blue-200 shadow-sm cursor-pointer"
                             onClick={(e) => handleEditClick(item as Item, e)}
                             title={t('Edit', '编辑')}
                           >
                             <Pencil size={11} strokeWidth={2.5}/>
                           </div>
-                          <div 
-                            className="w-6 h-6 flex items-center justify-center bg-white/90 backdrop-blur-sm border border-neutral-200 rounded-full text-neutral-400 hover:text-red-500 hover:border-red-200 shadow-sm cursor-pointer"
-                            onClick={(e) => deleteItem(item.id, e)}
-                            title={t('Delete', '删除')}
-                          >
-                            <X size={12} strokeWidth={2.5}/>
-                          </div>
+                          {item.type === 'todo' && !item.isDaily && getDaysFromToday(selectedDate) <= 0 && (
+                            <div
+                              className="w-6 h-6 flex items-center justify-center bg-white/90 backdrop-blur-sm border border-neutral-200 rounded-full text-neutral-400 hover:text-green-600 hover:border-green-200 shadow-sm cursor-pointer"
+                              onClick={(e) => getDaysFromToday(selectedDate) < 0 ? moveToToday(item.id, e) : moveToTomorrow(item.id, e)}
+                              title={getDaysFromToday(selectedDate) < 0 ? t('Plant to Today', '种到今天') : t('Plant Tomorrow', '种到明天')}
+                            >
+                              <ArrowRight size={12} strokeWidth={2.5} />
+                            </div>
+                          )}
+
                         </div>
                       </>
                     )}
@@ -1917,18 +2297,25 @@ export default function App() {
       </div>
 
       {/* Input Area */}
-      <form 
+      <form
         onSubmit={handleAddItem}
-        className="absolute bottom-10 left-1/2 -translate-x-1/2 w-[55vw] sm:w-[65vw] md:w-[85%] max-w-[540px] z-30"
+        className={`absolute bottom-10 left-1/2 -translate-x-1/2 w-[55vw] sm:w-[65vw] md:w-[85%] max-w-[540px] z-30 transition-opacity duration-300 ${isDragging ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
         onClick={(e) => e.stopPropagation()}
       >
         <AnimatePresence>
           {isFocused && (
-              <motion.div 
+              <motion.div
               initial={{ opacity: 0, y: 15, filter: 'blur(4px)' }}
               animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
               exit={{ opacity: 0, y: 10, filter: 'blur(4px)' }}
               transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+              onMouseDown={(event) => {
+                const target = event.target as HTMLElement;
+                if (target.closest('button,input,textarea,select,label')) {
+                  return;
+                }
+                event.preventDefault();
+              }}
               className={`absolute bottom-full mb-6 left-1/2 -translate-x-1/2 w-max max-w-[90vw] flex flex-wrap justify-center gap-x-10 gap-y-5 text-[9px] uppercase font-medium tracking-[0.2em] px-8 py-6 backdrop-blur-3xl rounded-[2rem] shadow-[0_8px_32px_rgba(0,0,0,0.06)] bg-white/40 border border-white/60 ${isDarkBg ? 'text-white/90' : 'text-neutral-500'}`}
             >
               {activeTab === 'todo' && (
@@ -1936,10 +2323,10 @@ export default function App() {
                   <div className="flex flex-col items-center gap-3">
                     <span className="text-[8px] opacity-70">{t('Importance', '重要性')}</span>
                     <div className="flex gap-2">
-                      {[1, 2, 3].map(v => (
-                        <button 
+                      {IMPORTANCE_LEVELS.map(v => (
+                        <button
                           key={v} type="button" onClick={() => setImportance(v)}
-                          className={`w-4 h-4 rounded-full border transition-all duration-300 ${importance >= v ? (isDarkBg ? 'bg-white border-white scale-110' : 'bg-neutral-800 border-neutral-800 scale-110') : (isDarkBg ? 'bg-transparent border-white/30 hover:border-white/60' : 'bg-transparent border-neutral-300 hover:border-neutral-400')}`} 
+                          className={`w-4 h-4 rounded-full border transition-all duration-300 ${importance >= v ? (isDarkBg ? 'bg-white border-white scale-110' : 'bg-neutral-800 border-neutral-800 scale-110') : (isDarkBg ? 'bg-transparent border-white/30 hover:border-white/60' : 'bg-transparent border-neutral-300 hover:border-neutral-400')}`}
                         />
                       ))}
                     </div>
@@ -1948,8 +2335,8 @@ export default function App() {
                   <div className="flex flex-col items-center gap-3">
                     <span className="text-[8px] opacity-70">{t('Show Until', '持续几天')}</span>
                     <div className="flex gap-3 items-center">
-                      {[{ l: '0d', v: 0 }, { l: '1d', v: 1 }, { l: '3d', v: 3 }, { l: '7d', v: 7 }].map(({l, v}) => (
-                        <button 
+                      {SHOW_UNTIL_PRESETS.map(({l, v}) => (
+                        <button
                           key={v} type="button" onClick={() => { setShowUntilDays(v); setIsCustomDateOpen(false); }}
                           className={`transition-all duration-300 pb-1 border-b ${showUntilDays === v && !isCustomDateOpen ? (isDarkBg ? 'text-white border-white' : 'text-neutral-900 border-neutral-900') : (isDarkBg ? 'hover:text-white/80 border-transparent text-white/50' : 'hover:text-neutral-600 border-transparent')}`}
                         >
@@ -1957,7 +2344,7 @@ export default function App() {
                         </button>
                       ))}
                       {!isCustomDateOpen ? (
-                        <button 
+                        <button
                           type="button" onClick={() => setIsCustomDateOpen(true)}
                           className={`transition-all duration-300 pb-1 border-b border-transparent ${isDarkBg ? 'hover:text-white/80 text-white/50' : 'hover:text-neutral-600 text-neutral-500'}`}
                         >
@@ -1965,10 +2352,10 @@ export default function App() {
                         </button>
                       ) : (
                         <div className={`flex items-center border-b pb-1 ${isDarkBg ? 'border-white' : 'border-neutral-900'}`}>
-                          <input 
-                            type="number" min="0" max="365" 
+                          <input
+                            type="number" min="0" max="365"
                             style={{ width: `${Math.max(22, showUntilDays.toString().length * 10 + 12)}px` }}
-                            value={showUntilDays} 
+                            value={showUntilDays}
                             onChange={(e) => setShowUntilDays(parseInt(e.target.value) || 0)}
                             className={`bg-transparent text-center outline-none appearance-none ${isDarkBg ? 'text-white' : 'text-neutral-900'}`}
                           />
@@ -1981,13 +2368,13 @@ export default function App() {
                   <div className="flex flex-col items-center gap-3">
                     <span className="text-[8px] opacity-70">{t('Type', '类型')}</span>
                     <div className="flex gap-3">
-                      <button 
+                      <button
                         type="button" onClick={() => setIsDaily(!isDaily)}
                         className={`transition-all duration-300 pb-1 border-b ${isDaily ? (isDarkBg ? 'text-white border-white' : 'text-neutral-900 border-neutral-900') : (isDarkBg ? 'text-white/50 hover:text-white/80 border-transparent' : 'text-neutral-400 hover:text-neutral-600 border-transparent')}`}
                       >
                         {t('Daily', '每日重复')}
                       </button>
-                      <button 
+                      <button
                         type="button" onClick={() => setIsLight(!isLight)}
                         className={`transition-all duration-300 pb-1 border-b ${isLight ? (isDarkBg ? 'text-white border-white' : 'text-neutral-900 border-neutral-900') : (isDarkBg ? 'text-white/50 hover:text-white/80 border-transparent' : 'text-neutral-400 hover:text-neutral-600 border-transparent')}`}
                       >
@@ -2003,10 +2390,10 @@ export default function App() {
                   <div className="flex flex-col items-center gap-3">
                     <span className="text-[8px] opacity-70">{t('Interest', '心动程度')}</span>
                     <div className="flex gap-2">
-                      {[1, 2, 3].map(v => (
-                        <button 
+                      {IMPORTANCE_LEVELS.map(v => (
+                        <button
                           key={v} type="button" onClick={() => setInterest(v)}
-                          className={`w-3.5 h-3.5 rounded-sm transition-all duration-300 ${interest >= v ? (isDarkBg ? 'bg-white border-white scale-110' : 'bg-neutral-800 border-neutral-800 scale-110') : (isDarkBg ? 'bg-transparent border border-white/30 hover:border-white/60' : 'bg-transparent border border-neutral-300 hover:border-neutral-400')}`} 
+                          className={`w-3.5 h-3.5 rounded-sm transition-all duration-300 ${interest >= v ? (isDarkBg ? 'bg-white border-white scale-110' : 'bg-neutral-800 border-neutral-800 scale-110') : (isDarkBg ? 'bg-transparent border border-white/30 hover:border-white/60' : 'bg-transparent border border-neutral-300 hover:border-neutral-400')}`}
                         />
                       ))}
                     </div>
@@ -2014,10 +2401,10 @@ export default function App() {
                   <div className="flex flex-col items-center gap-3">
                     <span className="text-[8px] opacity-70">{t('Estimated Time', '预计耗时')}</span>
                     <div className="flex gap-3 items-center">
-                      {[1, 2, 3].map(v => (
-                        <button 
+                      {IMPORTANCE_LEVELS.map(v => (
+                        <button
                           key={`speed-${v}`} type="button" onClick={() => setSpeedLevel(v)}
-                          className={`transition-all duration-300 pb-1 border-b text-[9px] whitespace-nowrap ${speedLevel === v ? (isDarkBg ? 'text-white border-white' : 'text-neutral-900 border-neutral-900') : (isDarkBg ? 'text-white/50 hover:text-white/80 border-transparent' : 'text-neutral-500 hover:text-neutral-700 border-transparent')}`} 
+                          className={`transition-all duration-300 pb-1 border-b text-[9px] whitespace-nowrap ${speedLevel === v ? (isDarkBg ? 'text-white border-white' : 'text-neutral-900 border-neutral-900') : (isDarkBg ? 'text-white/50 hover:text-white/80 border-transparent' : 'text-neutral-500 hover:text-neutral-700 border-transparent')}`}
                         >
                           {getEstimatedTimeLabel(v)}
                         </button>
@@ -2081,13 +2468,32 @@ export default function App() {
           )}
         </div>
       </form>
+      <AnimatePresence>
+        {isDragging && (
+          <motion.div
+            key="delete-zone"
+            initial={{ opacity: 0, y: 40 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 40 }}
+            transition={{ duration: 0.3 }}
+            className={`absolute bottom-0 left-0 w-full h-[100px] flex items-end justify-center pb-4 z-20 transition-colors duration-300 pointer-events-auto ${dragHoverDelete ? 'bg-gradient-to-t from-red-500/20 to-transparent' : 'bg-gradient-to-t from-black/10 to-transparent'}`}
+          >
+            <div className={`flex flex-col items-center gap-2 transition-transform duration-300 ${dragHoverDelete ? 'text-red-500 scale-110' : 'text-neutral-400 scale-100'}`}>
+              <Trash2 size={24} strokeWidth={dragHoverDelete ? 2.5 : 2} />
+              <span className="text-sm font-medium font-serif">
+                {t('Release to delete', '松手删除')}
+              </span>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* List View Button removed */}
 
       {/* Wishlist List Modal */}
       <AnimatePresence>
         {isWishlistModalOpen && (
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -2095,7 +2501,7 @@ export default function App() {
             style={{ backgroundColor: `${bgColor}CC` }}
             onClick={() => setIsWishlistModalOpen(false)}
           >
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, y: 20, scale: 0.95 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 20, scale: 0.95 }}
@@ -2134,15 +2540,10 @@ export default function App() {
                 </AnimatePresence>
               </div>
               <div className="overflow-y-auto p-4 flex-1 slim-black-scrollbar">
-                {items.filter(i => i.type === 'grass').length === 0 ? (
+                {!hasWishlistItems ? (
                   <p className="text-center text-neutral-400 py-10 font-serif">{t('Your garden is empty. Plant something for later.', '花园空空如也...先种下一件以后想做的事吧。')}</p>
                 ) : (
-                    <Reorder.Group axis="y" values={items.filter(i => i.type === 'grass').filter(i => wishlistSearchQuery === '' || (i.title && i.title.toLowerCase().includes(wishlistSearchQuery.toLowerCase()))).sort((a,b) => {
-                      const orderA = a.order ?? Number.MAX_SAFE_INTEGER;
-                      const orderB = b.order ?? Number.MAX_SAFE_INTEGER;
-                      if (orderA !== orderB) return orderA - orderB;
-                      return (b.updatedAt || b.createdAt) - (a.updatedAt || a.createdAt);
-                    })} onReorder={(newOrder) => {
+                    <Reorder.Group axis="y" values={wishlistItems} onReorder={(newOrder) => {
                       setItems(prevItems => {
                         const updatedItems = [...prevItems];
                         newOrder.forEach((item, index) => {
@@ -2154,21 +2555,13 @@ export default function App() {
                         return updatedItems;
                       });
                     }} className="space-y-2">
-                      {items
-                        .filter(i => i.type === 'grass')
-                        .filter(i => wishlistSearchQuery === '' || (i.title && i.title.toLowerCase().includes(wishlistSearchQuery.toLowerCase())))
-                        .sort((a,b) => {
-                          const orderA = a.order ?? Number.MAX_SAFE_INTEGER;
-                          const orderB = b.order ?? Number.MAX_SAFE_INTEGER;
-                          if (orderA !== orderB) return orderA - orderB;
-                          return (b.updatedAt || b.createdAt) - (a.updatedAt || a.createdAt);
-                        }).map(item => (
+                      {wishlistItems.map(item => (
                         <Reorder.Item key={item.id} value={item} className={`flex items-center justify-between p-4 rounded-2xl border transition-colors cursor-grab active:cursor-grabbing ${item.inGarden ? 'bg-white border-neutral-200 shadow-sm' : 'bg-transparent border-transparent hover:bg-white/50'}`}>
                         <div className="flex items-center gap-4 flex-1">
                           <button className="text-neutral-300 hover:text-neutral-500 cursor-grab active:cursor-grabbing">
                              <GripVertical size={16} />
                           </button>
-                          <button 
+                          <button
                             onClick={() => handleItemClick(item.id, { stopPropagation: () => {} } as unknown as React.MouseEvent)}
                             className={`w-5 h-5 rounded-full border flex items-center justify-center transition-colors ${item.completed ? 'bg-neutral-800 border-neutral-800 text-white' : 'border-neutral-300 hover:border-neutral-500 text-transparent'}`}
                           >
@@ -2191,7 +2584,7 @@ export default function App() {
                         </div>
                         <div className="flex items-center gap-2 pl-4">
                           {!item.completed && (
-                            <button 
+                            <button
                               onClick={(e) => addToTodayTask(item.id, e)}
                               className="p-2 rounded-full bg-indigo-50 text-indigo-500 hover:bg-indigo-100 transition-colors"
                               title={t("Add to Today's Task", "移植到今日任务")}
@@ -2199,14 +2592,14 @@ export default function App() {
                               <CalendarPlus size={16} />
                             </button>
                           )}
-                          <button 
+                          <button
                             onClick={() => toggleGardenState(item.id)}
                             className={`p-2 rounded-full transition-colors ${item.inGarden ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-neutral-100 text-neutral-500 hover:bg-neutral-200'}`}
                             title={item.inGarden ? t("Unpin from Garden", "取消展示") : t("Plant in Garden", "种回主花园")}
                           >
                             {item.inGarden ? <ArchiveRestore size={16} /> : <Sprout size={16} />}
                           </button>
-                          <button 
+                          <button
                             onClick={(e) => deleteItem(item.id, e)}
                             className="p-2 rounded-full bg-neutral-100 text-neutral-500 hover:bg-red-100 hover:text-red-600 transition-colors"
                           >
@@ -2226,7 +2619,7 @@ export default function App() {
       {/* Settings Modal */}
       <AnimatePresence>
         {isSettingsOpen && (
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -2234,7 +2627,7 @@ export default function App() {
             style={{ backgroundColor: `${bgColor}CC` }}
             onClick={() => setIsSettingsOpen(false)}
           >
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, y: 20, scale: 0.95 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 20, scale: 0.95 }}
@@ -2283,14 +2676,7 @@ export default function App() {
                         type="button"
                         onClick={() => {
                           setIsSettingsOpen(false);
-                          setVisibleGuides([
-                            'monthPicker',
-                            'timeline',
-                            'todo-title',
-                            'grass-title',
-                            'todo-input',
-                            'grass-input',
-                          ]);
+                          setVisibleGuides(guideIds);
                         }}
                         className="px-4 py-1.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-600 text-xs font-medium rounded-full transition-colors cursor-pointer"
                       >
@@ -2305,7 +2691,7 @@ export default function App() {
                     <div className="flex justify-between items-center gap-4 relative">
                       <span className="text-sm text-neutral-700">{t('Background Color', '背景颜色')}</span>
                       <div className="flex items-center gap-3">
-                        {['#F9F8F6', '#fad6df', '#1f3c6b'].map(preset => (
+                        {BG_COLOR_PRESETS.map(preset => (
                           <button
                             key={preset}
                             onClick={() => saveBgColor(preset)}
@@ -2317,33 +2703,33 @@ export default function App() {
                         ))}
                         <div className="w-px h-3 bg-neutral-200 mx-0.5" />
                         <div className="relative">
-                          <button 
+                          <button
                             onClick={() => setIsBgColorPickerOpen(!isBgColorPickerOpen)}
-                            className={`w-5 h-5 rounded-full transition-all duration-300 ease-out flex items-center justify-center shadow-sm ${!['#f9f8f6', '#fad6df', '#1f3c6b'].includes(bgColor.toLowerCase()) ? 'ring-1 ring-offset-0 ring-neutral-400 scale-110' : 'ring-0 ring-offset-0 ring-transparent'}`}
-                            style={{ 
-                              background: !['#f9f8f6', '#fad6df', '#1f3c6b'].includes(bgColor.toLowerCase()) 
-                                ? bgColor 
+                            className={`w-5 h-5 rounded-full transition-all duration-300 ease-out flex items-center justify-center shadow-sm ${!BG_COLOR_PRESET_SET.has(bgColor.toLowerCase()) ? 'ring-1 ring-offset-0 ring-neutral-400 scale-110' : 'ring-0 ring-offset-0 ring-transparent'}`}
+                            style={{
+                              background: !BG_COLOR_PRESET_SET.has(bgColor.toLowerCase())
+                                ? bgColor
                                 : '#f3f4f6'
                             }}
                             title={t('Custom Color', '自定义颜色')}
                           >
-                            {['#f9f8f6', '#fad6df', '#1f3c6b'].includes(bgColor.toLowerCase()) && (
+                            {BG_COLOR_PRESET_SET.has(bgColor.toLowerCase()) && (
                                <svg viewBox="0 0 24 24" fill="none" className="w-3 h-3 text-neutral-400" stroke="currentColor" strokeWidth="2.5">
                                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
                                </svg>
                             )}
                           </button>
-                          
+
                           {/* Mini Custom Palette Popover */}
                           <AnimatePresence>
                             {isBgColorPickerOpen && (
                               <>
-                                <div 
-                                  className="fixed inset-0 z-40" 
+                                <div
+                                  className="fixed inset-0 z-40"
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     setIsBgColorPickerOpen(false);
-                                  }} 
+                                  }}
                                 />
                                 <motion.div
                                   initial={{ opacity: 0, y: -5, scale: 0.95 }}
@@ -2363,7 +2749,7 @@ export default function App() {
                     <div className="flex justify-between items-center mt-4">
                       <span className="text-sm text-neutral-700">{t('Weather', '天气')}</span>
                       <div className="flex bg-neutral-100 rounded-lg p-1">
-                         {(['sunny', 'rainy'] as const).map(w => (
+                         {WEATHER_OPTIONS.map(w => (
                             <button
                                key={w}
                                onClick={() => saveWeather(w)}
@@ -2377,7 +2763,7 @@ export default function App() {
                     <div className="flex justify-between items-center mt-4">
                       <span className="text-sm text-neutral-700">{t('Language', '语言')}</span>
                       <div className="flex bg-neutral-100 rounded-lg p-1">
-                         {(['en', 'zh'] as const).map(l => (
+                         {LANGUAGE_OPTIONS.map(l => (
                             <button
                                key={l}
                                onClick={() => saveLanguage(l)}
@@ -2390,13 +2776,13 @@ export default function App() {
                     </div>
                   </div>
                 </div>
-                
+
                 <div className="pt-4 border-t border-neutral-200/50">
                   <h3 className="text-xs uppercase tracking-widest text-neutral-500 mb-4">{t('Wishlist Display', '种草页显示')}</h3>
                   <div className="space-y-4">
                     <div className="flex justify-between items-center">
                       <span className="text-sm text-neutral-700">{t('Max Completed Flowers', '最大已完成数量')}</span>
-                      <input 
+                      <input
                         type="number" min="0" max="100"
                         value={maxCompletedFlowers}
                         onChange={(e) => saveMaxCompleted(parseInt(e.target.value) || 0)}
@@ -2405,7 +2791,7 @@ export default function App() {
                     </div>
                     <div className="flex justify-between items-center">
                       <span className="text-sm text-neutral-700">{t('Max Uncompleted Flowers', '最大未完成数量')}</span>
-                      <input 
+                      <input
                         type="number" min="0" max="100"
                         value={maxUncompletedFlowers}
                         onChange={(e) => saveMaxUncompleted(parseInt(e.target.value) || 0)}
@@ -2437,13 +2823,13 @@ export default function App() {
                     <div className="flex justify-between items-center">
                       <span className="text-sm text-neutral-700">{t('Reminder Interval (minutes)', '提醒间隔 (分钟)')}</span>
                       <div className="relative flex items-center">
-                        <input 
+                        <input
                           type="number" min="1" max="1440"
                           value={notificationInterval}
                           onChange={(e) => saveNotificationInterval(parseInt(e.target.value) || 60)}
                           className="w-16 bg-transparent border-b border-neutral-300 text-center text-sm outline-none pb-1"
                         />
-                        <button 
+                        <button
                           onClick={() => setIsIntervalDropdownOpen(!isIntervalDropdownOpen)}
                           className="ml-1 p-1 rounded-full hover:bg-neutral-100 text-neutral-400 transition-colors"
                         >
@@ -2455,12 +2841,12 @@ export default function App() {
                         <AnimatePresence>
                           {isIntervalDropdownOpen && (
                             <>
-                              <div 
-                                className="fixed inset-0 z-40" 
+                              <div
+                                className="fixed inset-0 z-40"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   setIsIntervalDropdownOpen(false);
-                                }} 
+                                }}
                               />
                               <motion.div
                                 initial={{ opacity: 0, y: -5, scale: 0.95 }}
@@ -2469,12 +2855,7 @@ export default function App() {
                                 transition={{ duration: 0.15 }}
                                 className="absolute right-0 top-8 bg-white/90 backdrop-blur-xl border border-neutral-200 shadow-xl rounded-xl z-50 overflow-hidden w-28 py-1"
                               >
-                                {[
-                                  { value: 30, label: '30m' },
-                                  { value: 60, label: '1h (60m)' },
-                                  { value: 120, label: '2h (120m)' },
-                                  { value: 180, label: '3h (180m)' }
-                                ].map(preset => (
+                                {NOTIFICATION_INTERVAL_PRESETS.map(preset => (
                                   <button
                                     key={preset.value}
                                     onClick={() => {
@@ -2495,11 +2876,7 @@ export default function App() {
                     <div className="flex justify-between items-center mt-4">
                       <span className="text-sm text-neutral-700">{t('Minimum Reminder', '最低提醒')}</span>
                       <div className="flex bg-neutral-100 rounded-lg p-1">
-                         {[
-                           { value: 1, zhLabel: '普通' },
-                           { value: 2, zhLabel: '重要' },
-                           { value: 3, zhLabel: '很重要' },
-                         ].map(({ value, zhLabel }) => (
+                         {MIN_REMINDER_OPTIONS.map((value) => (
                             <button
                                key={value}
                                onClick={() => saveNotificationMinImportance(value)}
@@ -2516,12 +2893,12 @@ export default function App() {
                 <div className="pt-4 border-t border-neutral-200/50">
                   <h3 className="text-xs uppercase tracking-widest text-neutral-500 mb-4">{t('Data', '数据')}</h3>
                   <div className="flex flex-col gap-3">
-                    <button 
+                    <button
                       onClick={() => {
                         const dataUrl = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(items));
-                        const a = document.createElement('a'); 
-                        a.href = dataUrl; 
-                        a.download = "Today's Flower Backup.json"; 
+                        const a = document.createElement('a');
+                        a.href = dataUrl;
+                        a.download = "Today's Flower Backup.json";
                         a.click();
                       }}
                       className="text-left text-sm text-neutral-700 hover:text-black py-2"
@@ -2530,7 +2907,7 @@ export default function App() {
                     </button>
                     <label className="text-left text-sm text-neutral-700 hover:text-black py-2 cursor-pointer">
                       {t('Import Data', '导入数据')}
-                      <input 
+                      <input
                         type="file" accept=".json" className="hidden"
                         onChange={(e) => {
                            const file = e.target.files?.[0];
@@ -2546,7 +2923,7 @@ export default function App() {
                         }}
                       />
                     </label>
-                    <button 
+                    <button
                       onClick={() => setIsResetConfirmOpen(true)}
                       className="text-left text-sm text-red-500 hover:text-red-600 transition-colors py-2 mt-2"
                     >
@@ -2563,7 +2940,7 @@ export default function App() {
       {/* Flower Selection Modal */}
       <AnimatePresence>
         {isFlowerSelectorOpen && (
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -2571,7 +2948,7 @@ export default function App() {
             style={{ backgroundColor: `${bgColor}CC` }}
             onClick={() => setIsFlowerSelectorOpen(false)}
           >
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, y: 20, scale: 0.95 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 20, scale: 0.95 }}
@@ -2589,8 +2966,8 @@ export default function App() {
               </div>
 
               <div className="flex gap-2 mb-6">
-                 {[1, 2, 3].map(imp => (
-                    <button 
+                 {IMPORTANCE_LEVELS.map(imp => (
+                    <button
                       key={imp}
                       onClick={() => setActiveFlowerTab(imp)}
                       className={`flex-1 py-2 text-sm font-medium rounded-full transition-all duration-300 ${activeFlowerTab === imp ? 'bg-neutral-800 text-white shadow-md' : 'bg-neutral-100/50 text-neutral-500 hover:bg-neutral-200/50'}`}
@@ -2605,8 +2982,8 @@ export default function App() {
                     const groupIds = getFlowerGroupIds(fid);
                     const isSelected = groupIds.some(gId => flowerSelection[activeFlowerTab]?.includes(gId));
                     return (
-                      <div 
-                        key={fid} 
+                      <div
+                        key={fid}
                         onClick={() => {
                            setFlowerSelection(prev => {
                               const curr = prev[activeFlowerTab] || [];
@@ -2634,14 +3011,14 @@ export default function App() {
       {/* Reset Confirmation Modal */}
       <AnimatePresence>
         {isResetConfirmOpen && (
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-[60] flex items-center justify-center p-6 backdrop-blur-[2px] bg-black/10"
             onClick={() => setIsResetConfirmOpen(false)}
           >
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, y: 15, scale: 0.95 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 10, scale: 0.95 }}
@@ -2656,13 +3033,13 @@ export default function App() {
                 {t('Are you sure you want to delete all data? This action cannot be undone.', '确定要删除所有数据吗？此操作无法撤销。')}
               </p>
               <div className="flex gap-3 w-full">
-                <button 
+                <button
                   onClick={() => setIsResetConfirmOpen(false)}
                   className="flex-1 py-2.5 rounded-full bg-neutral-100 hover:bg-neutral-200 text-neutral-600 text-[11px] font-medium tracking-wider uppercase transition-colors"
                 >
                   {t('Cancel', '取消')}
                 </button>
-                <button 
+                <button
                   onClick={() => {
                     const defaultFlowerSelection = normalizeFlowerSelection();
                     setItems([]);
