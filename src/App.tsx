@@ -2476,7 +2476,7 @@ export default function App() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 40 }}
             transition={{ duration: 0.3 }}
-            className={`absolute bottom-0 left-0 w-full h-[100px] flex items-end justify-center pb-4 z-20 transition-colors duration-300 pointer-events-auto ${dragHoverDelete ? 'bg-gradient-to-t from-red-500/20 to-transparent' : 'bg-gradient-to-t from-black/10 to-transparent'}`}
+            className={`absolute bottom-0 left-0 w-full h-[100px] flex items-end justify-center pb-4 z-[60] transition-colors duration-300 pointer-events-auto ${dragHoverDelete ? 'bg-gradient-to-t from-red-500/20 to-transparent' : 'bg-gradient-to-t from-black/10 to-transparent'}`}
           >
             <div className={`flex flex-col items-center gap-2 transition-transform duration-300 ${dragHoverDelete ? 'text-red-500 scale-110' : 'text-neutral-400 scale-100'}`}>
               <Trash2 size={24} strokeWidth={dragHoverDelete ? 2.5 : 2} />

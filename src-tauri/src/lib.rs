@@ -24,9 +24,13 @@ const MAIN_WINDOW_LABEL: &str = "main";
 const REMINDER_WINDOW_LABEL: &str = "reminder";
 const TRAY_ID: &str = "todays-flower";
 const REMINDER_MIN_DELAY_MS: u64 = 1000;
-const REMINDER_TASKS_PER_NOTIFICATION: usize = 4;
 const REMINDER_WINDOW_WIDTH: f64 = 430.0;
 const REMINDER_WINDOW_HEIGHT: f64 = 320.0;
+const DISABLE_CONTEXT_MENU_SCRIPT: &str = r#"
+window.addEventListener('contextmenu', function (event) {
+  event.preventDefault();
+}, { capture: true });
+"#;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -172,12 +176,7 @@ fn build_reminder_window_payload(
         interval_minutes: state.interval_minutes,
         language: state.language.clone(),
         total_task_count: Some(state.tasks.len()),
-        tasks: state
-            .tasks
-            .iter()
-            .take(REMINDER_TASKS_PER_NOTIFICATION)
-            .cloned()
-            .collect(),
+        tasks: state.tasks.clone(),
     })
 }
 
@@ -197,6 +196,8 @@ fn create_main_window(app: &AppHandle) -> Result<WebviewWindow, String> {
 
     let mut builder =
         WebviewWindowBuilder::from_config(app, &config).map_err(|error| error.to_string())?;
+
+    builder = builder.initialization_script(DISABLE_CONTEXT_MENU_SCRIPT);
 
     if let Some(icon) = taskbar_icon() {
         builder = builder.icon(icon).map_err(|error| error.to_string())?;
@@ -269,6 +270,7 @@ fn show_reminder_window(app: AppHandle, payload: DesktopReminderStatePayload) {
     .shadow(false)
     .background_color(Color(0, 0, 0, 0))
     .visible(false)
+    .initialization_script(DISABLE_CONTEXT_MENU_SCRIPT)
     .on_page_load(move |window, event| {
         if event.event() != PageLoadEvent::Finished {
             return;
